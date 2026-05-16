@@ -1,0 +1,19 @@
+<w:document>
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+      <w:r><w:t>Project Plan</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>This document explains the first milestone.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr/></w:pPr>
+      <w:r><w:t>Build the CLI</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr/></w:pPr>
+      <w:r><w:t>Verify Markdown output</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>

@@ -1,0 +1,29 @@
+use std::io;
+use std::path::Path;
+
+use bonjil::OcrEngine;
+use bonjil::ocr::{self, OcrBackend};
+
+struct StubOcr;
+
+impl OcrBackend for StubOcr {
+    fn recognize(&self, input: &Path) -> io::Result<String> {
+        Ok(format!("recognized:{}", input.display()))
+    }
+}
+
+#[test]
+fn ocr_engine_boundary_accepts_replaceable_backend() {
+    let text = ocr::recognize_with(&StubOcr, Path::new("scan.pdf")).unwrap();
+
+    assert_eq!(text, "recognized:scan.pdf");
+}
+
+#[test]
+fn ndlocr_lite_subprocess_command_is_exposed() {
+    assert_eq!(
+        ocr::command_for_engine(&OcrEngine::NdlOcrLite).unwrap(),
+        "ndlocr-lite"
+    );
+    assert!(ocr::command_for_engine(&OcrEngine::None).is_none());
+}

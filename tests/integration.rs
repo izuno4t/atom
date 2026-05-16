@@ -40,6 +40,88 @@ fn converts_simple_html_to_markdown() {
 }
 
 #[test]
+fn converts_html_image_to_markdown_image() {
+    let mut warnings = Vec::new();
+    let ast = bonjil::html::parse_html(
+        r#"<main><img src="media/chart.png" alt="Chart" title="Figure 1"></main>"#,
+        &mut warnings,
+    );
+    let markdown = markdown::write_markdown(&ast, Flavor::Gfm);
+
+    assert_eq!(
+        ast,
+        vec![AstNode::Image {
+            alt: "Chart".to_string(),
+            path: "media/chart.png".to_string(),
+            title: Some("Figure 1".to_string()),
+        }]
+    );
+    assert_eq!(markdown, "![Chart](media/chart.png \"Figure 1\")\n");
+}
+
+#[test]
+fn warns_when_image_caption_is_missing() {
+    let mut warnings = Vec::new();
+    let ast = bonjil::html::parse_html(r#"<img src="media/chart.png" alt="Chart">"#, &mut warnings);
+
+    assert_eq!(
+        ast,
+        vec![AstNode::Image {
+            alt: "Chart".to_string(),
+            path: "media/chart.png".to_string(),
+            title: None,
+        }]
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains("caption inference failed"))
+    );
+}
+
+#[test]
+fn conversion_report_lists_referenced_media() {
+    let converter = Converter::new();
+
+    let result = converter
+        .convert_bytes(
+            "page.html",
+            br#"<img src="media/chart.png" alt="Chart" title="Figure 1">"#,
+        )
+        .unwrap();
+
+    assert_eq!(result.report.media, vec!["media/chart.png".to_string()]);
+}
+
+#[test]
+fn converts_html_in_document_order_and_ignores_scripts() {
+    let converter = Converter::new().with_options(ConversionOptions {
+        flavor: Flavor::Gfm,
+        format: OutputFormat::Markdown,
+        ..ConversionOptions::default()
+    });
+
+    let result = converter
+        .convert_bytes(
+            "sample.html",
+            br#"
+              <h1>Title</h1>
+              <script>alert("skip")</script>
+              <p>Intro</p>
+              <ul><li>First</li><li>Second</li></ul>
+              <pre><code>cargo test</code></pre>
+              <h2>Next</h2>
+            "#,
+        )
+        .unwrap();
+
+    assert_eq!(
+        result.markdown,
+        "# Title\n\nIntro\n\n- First\n- Second\n\n```text\ncargo test\n```\n\n## Next\n"
+    );
+}
+
+#[test]
 fn falls_back_to_html_table_for_complex_tables() {
     let ast = vec![AstNode::Table {
         rows: vec![TableRow {
@@ -56,6 +138,52 @@ fn falls_back_to_html_table_for_complex_tables() {
 
     assert!(actual.contains("<table>"));
     assert!(actual.contains("rowspan=\"2\""));
+}
+
+#[test]
+fn markdown_flavor_controls_simple_table_output() {
+    let ast = vec![AstNode::Table {
+        rows: vec![
+            TableRow {
+                cells: vec![
+                    TableCell {
+                        text: "Name".to_string(),
+                        rowspan: 1,
+                        colspan: 1,
+                        image: None,
+                    },
+                    TableCell {
+                        text: "Value".to_string(),
+                        rowspan: 1,
+                        colspan: 1,
+                        image: None,
+                    },
+                ],
+            },
+            TableRow {
+                cells: vec![
+                    TableCell {
+                        text: "Alpha".to_string(),
+                        rowspan: 1,
+                        colspan: 1,
+                        image: None,
+                    },
+                    TableCell {
+                        text: "1".to_string(),
+                        rowspan: 1,
+                        colspan: 1,
+                        image: None,
+                    },
+                ],
+            },
+        ],
+    }];
+
+    let gfm = markdown::write_markdown(&ast, Flavor::Gfm);
+    let commonmark = markdown::write_markdown(&ast, Flavor::CommonMark);
+
+    assert!(gfm.starts_with("| Name | Value |"));
+    assert!(commonmark.starts_with("<table>"));
 }
 
 #[test]
@@ -97,32 +225,27 @@ fn reports_unsupported_formats_without_external_calls() {
 
 #[test]
 fn parses_docx_tables_images_and_captions_from_xml() {
-    let xml = r#"
-        <w:document><w:body>
-          <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Title</w:t></w:r></w:p>
-          <w:p><w:r><w:t>Figure 1: System diagram</w:t></w:r></w:p>
-          <w:p><w:r><w:drawing><a:blip r:embed="rId5"/></w:drawing></w:r></w:p>
-          <w:tbl>
-            <w:tr>
-              <w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc>
-            </w:tr>
-          </w:tbl>
-        </w:body></w:document>
-    "#;
-    let rels = r#"<Relationships>
-        <Relationship Id="rId5" Target="media/image1.png"/>
-    </Relationships>"#;
+    let xml = include_str!("fixtures/unit/docx/table-image-caption.document.xml");
+    let rels = include_str!("fixtures/unit/docx/table-image-caption.rels.xml");
+    let expected = include_str!("fixtures/unit/docx/table-image-caption.expected.md");
     let mut warnings = Vec::new();
 
     let ast = docx::parse_document_xml_with_rels(xml, rels, &mut warnings);
     let rendered = markdown::write_markdown(&ast, Flavor::Gfm);
 
-    assert!(rendered.contains("# Title"));
-    assert!(
-        rendered
-            .contains("![Figure 1: System diagram](media/image1.png \"Figure 1: System diagram\")")
-    );
-    assert!(rendered.contains("colspan=\"2\""));
+    assert_eq!(rendered, expected);
+}
+
+#[test]
+fn parses_docx_heading_paragraph_list_fixture() {
+    let xml = include_str!("fixtures/unit/docx/heading-paragraph-list.document.xml");
+    let expected = include_str!("fixtures/unit/docx/heading-paragraph-list.expected.md");
+    let mut warnings = Vec::new();
+
+    let ast = docx::parse_document_xml(xml, &mut warnings);
+    let rendered = markdown::write_markdown(&ast, Flavor::CommonMark);
+
+    assert_eq!(rendered, expected);
 }
 
 #[test]

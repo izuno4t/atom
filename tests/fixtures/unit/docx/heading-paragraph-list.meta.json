@@ -1,0 +1,11 @@
+{
+  "description": "DOCX heading, paragraph, and list paragraphs convert to Markdown",
+  "tests": [
+    "structure_fidelity",
+    "lint_score"
+  ],
+  "expected_scores": {
+    "structure_fidelity": 1.0,
+    "lint_score": 0
+  }
+}

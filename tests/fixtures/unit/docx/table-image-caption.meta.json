@@ -1,0 +1,11 @@
+{
+  "description": "DOCX image caption and merged table cell remain readable",
+  "tests": [
+    "table_integrity",
+    "lint_score"
+  ],
+  "expected_scores": {
+    "table_integrity": 1.0,
+    "lint_score": 0
+  }
+}

@@ -23,48 +23,48 @@
 
 | ID | Status | Summary | DependsOn |
 | ---- | ---- | ---- | ---- |
-| TASK-001 | 🧪 | 定義するRustワークスペースとCLI骨格 | - |
-| TASK-002 | 🧪 | 定義する中間ASTの最小モデル | TASK-001 |
-| TASK-003 | 🧪 | 実装するDOCX入力の基本パーサ | TASK-002 |
-| TASK-004 | 🧪 | 実装するCommonMarkライター | TASK-002 |
-| TASK-005 | 🧪 | 接続する変換パイプラインの最小閉ループ | TASK-003,TASK-004 |
-| TASK-006 | 🧪 | 整備するDOCX用unit fixture | TASK-005 |
-| TASK-007 | 🧪 | 実装するgolden testとsnapshot比較 | TASK-006 |
-| TASK-008 | 🧪 | 実装するstructure_fidelity評価 | TASK-007 |
-| TASK-009 | 🧪 | 実装するlint_score評価 | TASK-007 |
-| TASK-010 | 🧪 | 出力する評価レポートJSON | TASK-008,TASK-009 |
-| TASK-011 | 🧪 | 固定するM1の開発コマンド群 | TASK-010 |
-| TASK-012 | 🧪 | 実装するHTML入力パーサ | TASK-011 |
-| TASK-013 | 🧪 | 追加するHTML用unit fixture | TASK-012 |
-| TASK-014 | 🧪 | 実装するMarkdown flavor選択 | TASK-011 |
-| TASK-015 | 🧪 | 実装するheading_recall評価 | TASK-013,TASK-014 |
-| TASK-016 | 🧪 | 実装するtable_integrity評価 | TASK-013,TASK-014 |
-| TASK-017 | 🧪 | 整備するintegration corpora構造 | TASK-016 |
-| TASK-018 | 🧪 | 構築するCI評価ベースライン | TASK-017 |
-| TASK-019 | 🧪 | 整備するエージェント開発ガードレール | TASK-018 |
-| TASK-020 | 🧪 | 実装するテキストPDFパーサ | TASK-019 |
-| TASK-021 | 🧪 | 実装するPDF見出し推論 | TASK-020 |
-| TASK-022 | 🧪 | 追加するPDF用unit fixture | TASK-021 |
-| TASK-023 | 🧪 | 実装するOCRエンジン境界 | TASK-022 |
-| TASK-024 | 🧪 | 接続するNDLOCR-Lite subprocess | TASK-023 |
-| TASK-025 | 🧪 | 実装するocr_cer評価 | TASK-024 |
-| TASK-026 | 🧪 | 実装する画像抽出とmedia出力 | TASK-025 |
-| TASK-027 | 🧪 | 実装するキャプション保持 | TASK-026 |
-| TASK-028 | 🧪 | 実装する変換report JSON | TASK-027 |
-| TASK-029 | 🧪 | 実装するLLMバックエンド抽象化 | TASK-028 |
-| TASK-030 | 🧪 | 実装するLLM送信確認と同意設定 | TASK-029 |
-| TASK-031 | 🧪 | 実装するLLM再構造化filter | TASK-030 |
-| TASK-032 | 🧪 | 実装するLLM翻訳filter | TASK-031 |
-| TASK-033 | 🧪 | 実装するLLM差分保存 | TASK-032 |
-| TASK-034 | 🧪 | 実装するtranslation_structure_preserve評価 | TASK-033 |
-| TASK-035 | 🧪 | 実装するPPTX入力パーサ | TASK-034 |
-| TASK-036 | 🧪 | 実装するXLSX入力パーサ | TASK-034 |
-| TASK-037 | 🧪 | 実装するHTMLテーブルフォールバック | TASK-035,TASK-036 |
-| TASK-038 | 🧪 | 実装するWMF/EMFラスタライズ | TASK-037 |
-| TASK-039 | 🧪 | 実装する設定ファイルbonjil.toml | TASK-038 |
-| TASK-040 | 🧪 | 実装するライブラリAPI | TASK-039 |
-| TASK-041 | 🧪 | 整備する性能ベンチマーク | TASK-040 |
-| TASK-042 | 🧪 | 整備するクロスプラットフォーム配布 | TASK-041 |
+| TASK-001 | ✅ | 定義するRustワークスペースとCLI骨格 | - |
+| TASK-002 | ✅ | 定義する中間ASTの最小モデル | TASK-001 |
+| TASK-003 | ✅ | 実装するDOCX入力の基本パーサ | TASK-002 |
+| TASK-004 | ✅ | 実装するCommonMarkライター | TASK-002 |
+| TASK-005 | ✅ | 接続する変換パイプラインの最小閉ループ | TASK-003,TASK-004 |
+| TASK-006 | ✅ | 整備するDOCX用unit fixture | TASK-005 |
+| TASK-007 | ✅ | 実装するgolden testとsnapshot比較 | TASK-006 |
+| TASK-008 | ✅ | 実装するstructure_fidelity評価 | TASK-007 |
+| TASK-009 | ✅ | 実装するlint_score評価 | TASK-007 |
+| TASK-010 | ✅ | 出力する評価レポートJSON | TASK-008,TASK-009 |
+| TASK-011 | ✅ | 固定するM1の開発コマンド群 | TASK-010 |
+| TASK-012 | ✅ | 実装するHTML入力パーサ | TASK-011 |
+| TASK-013 | ✅ | 追加するHTML用unit fixture | TASK-012 |
+| TASK-014 | ✅ | 実装するMarkdown flavor選択 | TASK-011 |
+| TASK-015 | ✅ | 実装するheading_recall評価 | TASK-013,TASK-014 |
+| TASK-016 | ✅ | 実装するtable_integrity評価 | TASK-013,TASK-014 |
+| TASK-017 | ✅ | 整備するintegration corpora構造 | TASK-016 |
+| TASK-018 | ✅ | 構築するCI評価ベースライン | TASK-017 |
+| TASK-019 | ✅ | 整備するエージェント開発ガードレール | TASK-018 |
+| TASK-020 | ✅ | 実装するテキストPDFパーサ | TASK-019 |
+| TASK-021 | ✅ | 実装するPDF見出し推論 | TASK-020 |
+| TASK-022 | ✅ | 追加するPDF用unit fixture | TASK-021 |
+| TASK-023 | ✅ | 実装するOCRエンジン境界 | TASK-022 |
+| TASK-024 | ✅ | 接続するNDLOCR-Lite subprocess | TASK-023 |
+| TASK-025 | ✅ | 実装するocr_cer評価 | TASK-024 |
+| TASK-026 | ✅ | 実装する画像抽出とmedia出力 | TASK-025 |
+| TASK-027 | ✅ | 実装するキャプション保持 | TASK-026 |
+| TASK-028 | ⏳ | 実装する変換report JSON | TASK-027 |
+| TASK-029 | ⏳ | 実装するLLMバックエンド抽象化 | TASK-028 |
+| TASK-030 | ⏳ | 実装するLLM送信確認と同意設定 | TASK-029 |
+| TASK-031 | ⏳ | 実装するLLM再構造化filter | TASK-030 |
+| TASK-032 | ⏳ | 実装するLLM翻訳filter | TASK-031 |
+| TASK-033 | ⏳ | 実装するLLM差分保存 | TASK-032 |
+| TASK-034 | ⏳ | 実装するtranslation_structure_preserve評価 | TASK-033 |
+| TASK-035 | ⏳ | 実装するPPTX入力パーサ | TASK-034 |
+| TASK-036 | ⏳ | 実装するXLSX入力パーサ | TASK-034 |
+| TASK-037 | ⏳ | 実装するHTMLテーブルフォールバック | TASK-035,TASK-036 |
+| TASK-038 | ⏳ | 実装するWMF/EMFラスタライズ | TASK-037 |
+| TASK-039 | ⏳ | 実装する設定ファイルbonjil.toml | TASK-038 |
+| TASK-040 | ⏳ | 実装するライブラリAPI | TASK-039 |
+| TASK-041 | ⏳ | 整備する性能ベンチマーク | TASK-040 |
+| TASK-042 | ⏳ | 整備するクロスプラットフォーム配布 | TASK-041 |
 
 ## タスク詳細（補足が必要な場合のみ）
 

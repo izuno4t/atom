@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -198,6 +199,14 @@ pub struct MetricScore {
     pub warnings: Vec<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OcrCerCase {
+    pub language: String,
+    pub orientation: String,
+    pub expected: String,
+    pub actual: String,
+}
+
 pub struct Converter {
     options: ConversionOptions,
 }
@@ -273,6 +282,9 @@ impl Converter {
             llm::apply_llm_filters(&mut ast, &self.options, &mut warnings)?;
         }
 
+        media.extend(collect_media_paths(&ast));
+        media.sort();
+        media.dedup();
         metadata.push(("nodes".to_string(), ast.len().to_string()));
         let rendered = render(&ast, &self.options);
         let report = ConversionReport {
@@ -323,6 +335,9 @@ impl Converter {
             }
         };
         let rendered = render(&ast, &self.options);
+        let mut media = collect_media_paths(&ast);
+        media.sort();
+        media.dedup();
         Ok(ConversionResult {
             ast,
             markdown: rendered,
@@ -338,7 +353,7 @@ impl Converter {
                 ocr_engine: None,
                 used_llm: self.options.llm != LlmBackend::None,
                 llm_destination: llm_destination(&self.options.llm),
-                media: Vec::new(),
+                media,
             },
         })
     }
@@ -390,7 +405,7 @@ pub mod markdown {
                 }
                 output.push('\n');
             }
-            AstNode::Table { rows } => write_table(rows, output),
+            AstNode::Table { rows } => write_table(rows, flavor, output),
             AstNode::Image { alt, path, title } => {
                 output.push_str("![");
                 output.push_str(alt);
@@ -433,36 +448,12 @@ pub mod markdown {
         }
     }
 
-    fn write_table(rows: &[TableRow], output: &mut String) {
-        if rows.iter().flat_map(|row| &row.cells).any(|cell| {
+    fn write_table(rows: &[TableRow], flavor: Flavor, output: &mut String) {
+        let requires_html = rows.iter().flat_map(|row| &row.cells).any(|cell| {
             cell.rowspan > 1 || cell.colspan > 1 || cell.image.is_some() || cell.text.contains('\n')
-        }) {
-            output.push_str("<table>\n");
-            for row in rows {
-                output.push_str("<tr>");
-                for cell in &row.cells {
-                    output.push_str("<td");
-                    if cell.rowspan > 1 {
-                        output.push_str(&format!(" rowspan=\"{}\"", cell.rowspan));
-                    }
-                    if cell.colspan > 1 {
-                        output.push_str(&format!(" colspan=\"{}\"", cell.colspan));
-                    }
-                    output.push('>');
-                    if let Some(path) = &cell.image {
-                        output.push_str("<img src=\"");
-                        output.push_str(&escape_html(path));
-                        output.push_str("\" alt=\"");
-                        output.push_str(&escape_html(&cell.text));
-                        output.push_str("\">");
-                    } else {
-                        output.push_str(&escape_html(&cell.text));
-                    }
-                    output.push_str("</td>");
-                }
-                output.push_str("</tr>\n");
-            }
-            output.push_str("</table>\n\n");
+        }) || matches!(flavor, Flavor::CommonMark | Flavor::HedgeDoc);
+        if requires_html {
+            write_html_table(rows, output);
             return;
         }
 
@@ -493,6 +484,35 @@ pub mod markdown {
         }
         output.push('\n');
     }
+
+    fn write_html_table(rows: &[TableRow], output: &mut String) {
+        output.push_str("<table>\n");
+        for row in rows {
+            output.push_str("<tr>");
+            for cell in &row.cells {
+                output.push_str("<td");
+                if cell.rowspan > 1 {
+                    output.push_str(&format!(" rowspan=\"{}\"", cell.rowspan));
+                }
+                if cell.colspan > 1 {
+                    output.push_str(&format!(" colspan=\"{}\"", cell.colspan));
+                }
+                output.push('>');
+                if let Some(path) = &cell.image {
+                    output.push_str("<img src=\"");
+                    output.push_str(&escape_html(path));
+                    output.push_str("\" alt=\"");
+                    output.push_str(&escape_html(&cell.text));
+                    output.push_str("\">");
+                } else {
+                    output.push_str(&escape_html(&cell.text));
+                }
+                output.push_str("</td>");
+            }
+            output.push_str("</tr>\n");
+        }
+        output.push_str("</table>\n\n");
+    }
 }
 
 pub mod html {
@@ -502,53 +522,60 @@ pub mod html {
         let mut ast = Vec::new();
         let sanitized = remove_block(input, "script");
         let sanitized = remove_block(&sanitized, "style");
-        for level in 1..=6 {
-            for text in extract_tag(&sanitized, &format!("h{level}")) {
-                ast.push(AstNode::Heading {
-                    level,
-                    text: decode_entities(&strip_tags(&text)),
-                });
-            }
-        }
-        for text in extract_tag(&sanitized, "p") {
-            ast.push(AstNode::Paragraph(decode_entities(&strip_tags(&text))));
-        }
-        let list_items = extract_tag(&sanitized, "li")
-            .into_iter()
-            .map(|item| vec![AstNode::Text(decode_entities(&strip_tags(&item)))])
-            .collect::<Vec<_>>();
-        if !list_items.is_empty() {
-            ast.push(AstNode::List {
-                ordered: sanitized.contains("<ol"),
-                items: list_items,
-            });
-        }
-        for code in extract_tag(&sanitized, "pre") {
-            ast.push(AstNode::CodeBlock {
-                language: None,
-                code: decode_entities(&strip_tags(&code)),
-            });
-        }
-        for table in extract_tag(&sanitized, "table") {
-            let rows = extract_tag(&table, "tr")
-                .into_iter()
-                .map(|row| {
-                    let mut cells = extract_tag(&row, "th");
-                    cells.extend(extract_tag(&row, "td"));
-                    TableRow {
-                        cells: cells
-                            .into_iter()
-                            .map(|cell| TableCell {
-                                text: decode_entities(&strip_tags(&cell)),
-                                rowspan: attr_usize(&cell, "rowspan").unwrap_or(1),
-                                colspan: attr_usize(&cell, "colspan").unwrap_or(1),
-                                image: attr_string(&cell, "src"),
-                            })
-                            .collect(),
+        let mut rest = sanitized.as_str();
+        while let Some((tag, start)) = find_next_supported_tag(rest) {
+            rest = &rest[start..];
+            if tag == "img" {
+                let Some((opening_tag, after)) = extract_opening_tag(rest) else {
+                    break;
+                };
+                if let Some(path) = attr_string(&opening_tag, "src") {
+                    let title = attr_string(&opening_tag, "title");
+                    if title.is_none() {
+                        warnings.push(format!("image caption inference failed: {path}"));
                     }
-                })
-                .collect::<Vec<_>>();
-            ast.push(AstNode::Table { rows });
+                    ast.push(AstNode::Image {
+                        alt: attr_string(&opening_tag, "alt").unwrap_or_default(),
+                        path,
+                        title,
+                    });
+                }
+                rest = after;
+                continue;
+            }
+            let Some((body, after)) = extract_first_tag(rest, tag) else {
+                break;
+            };
+            match tag {
+                "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+                    ast.push(AstNode::Heading {
+                        level: tag[1..].parse().unwrap_or(1),
+                        text: decode_entities(&strip_tags(&body)),
+                    });
+                }
+                "p" => ast.push(AstNode::Paragraph(decode_entities(&strip_tags(&body)))),
+                "ul" | "ol" => {
+                    let list_items = extract_tag(&body, "li")
+                        .into_iter()
+                        .map(|item| vec![AstNode::Text(decode_entities(&strip_tags(&item)))])
+                        .collect::<Vec<_>>();
+                    if !list_items.is_empty() {
+                        ast.push(AstNode::List {
+                            ordered: tag == "ol",
+                            items: list_items,
+                        });
+                    }
+                }
+                "pre" => ast.push(AstNode::CodeBlock {
+                    language: Some("text".to_string()),
+                    code: decode_entities(&strip_tags(&body)),
+                }),
+                "table" => ast.push(AstNode::Table {
+                    rows: parse_table(&body),
+                }),
+                _ => {}
+            }
+            rest = after;
         }
         if ast.is_empty() {
             warnings.push(
@@ -560,6 +587,74 @@ pub mod html {
             }
         }
         ast
+    }
+
+    fn find_next_supported_tag(input: &str) -> Option<(&'static str, usize)> {
+        [
+            "h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "pre", "table", "img",
+        ]
+        .into_iter()
+        .filter_map(|tag| find_tag_start(input, tag).map(|index| (tag, index)))
+        .min_by_key(|(_, index)| *index)
+    }
+
+    fn find_tag_start(input: &str, tag: &str) -> Option<usize> {
+        let lower = input.to_ascii_lowercase();
+        let needle = format!("<{tag}");
+        let mut offset = 0;
+        while let Some(found) = lower[offset..].find(&needle) {
+            let index = offset + found;
+            let boundary_index = index + needle.len();
+            let boundary = lower.as_bytes().get(boundary_index).copied();
+            if matches!(
+                boundary,
+                Some(b'>') | Some(b' ') | Some(b'\n') | Some(b'\t') | Some(b'/')
+            ) {
+                return Some(index);
+            }
+            offset = boundary_index;
+        }
+        None
+    }
+
+    fn extract_first_tag<'a>(input: &'a str, tag: &str) -> Option<(String, &'a str)> {
+        let open_prefix = format!("<{tag}");
+        let close = format!("</{tag}>");
+        let lower = input.to_ascii_lowercase();
+        let start = lower.find(&open_prefix)?;
+        let after_open = &input[start..];
+        let open_end = after_open.find('>')?;
+        let body_start = start + open_end + 1;
+        let close_start_rel = input[body_start..].to_ascii_lowercase().find(&close)?;
+        let close_start = body_start + close_start_rel;
+        let after = &input[close_start + close.len()..];
+        Some((input[body_start..close_start].to_string(), after))
+    }
+
+    fn extract_opening_tag(input: &str) -> Option<(String, &str)> {
+        let end = input.find('>')?;
+        Some((input[..=end].to_string(), &input[end + 1..]))
+    }
+
+    fn parse_table(table: &str) -> Vec<TableRow> {
+        extract_tag(table, "tr")
+            .into_iter()
+            .map(|row| {
+                let mut cells = extract_tag(&row, "th");
+                cells.extend(extract_tag(&row, "td"));
+                TableRow {
+                    cells: cells
+                        .into_iter()
+                        .map(|cell| TableCell {
+                            text: decode_entities(&strip_tags(&cell)),
+                            rowspan: attr_usize(&cell, "rowspan").unwrap_or(1),
+                            colspan: attr_usize(&cell, "colspan").unwrap_or(1),
+                            image: attr_string(&cell, "src"),
+                        })
+                        .collect(),
+                }
+            })
+            .collect()
     }
 
     fn extract_tag(input: &str, tag: &str) -> Vec<String> {
@@ -630,7 +725,8 @@ pub mod docx {
     ) -> Vec<AstNode> {
         let mut ast = Vec::new();
         let mut pending_caption: Option<String> = None;
-        for paragraph in extract_blocks(xml, "<w:p", "</w:p>") {
+        let body_without_tables = remove_blocks(xml, "<w:tbl", "</w:tbl>");
+        for paragraph in extract_blocks(&body_without_tables, "<w:p", "</w:p>") {
             let style = extract_style(&paragraph);
             let text = extract_text(&paragraph);
             if paragraph.contains("<w:drawing") {
@@ -652,7 +748,7 @@ pub mod docx {
             }
             if let Some(level) = heading_level(style.as_deref()) {
                 ast.push(AstNode::Heading { level, text });
-            } else if paragraph.contains("<w:numPr>") {
+            } else if paragraph.contains("<w:numPr") {
                 ast.push(AstNode::List {
                     ordered: false,
                     items: vec![vec![AstNode::Text(text)]],
@@ -700,6 +796,8 @@ pub mod docx {
             .map(|part| decode_entities(&strip_tags(&part)))
             .collect::<Vec<_>>()
             .join("")
+            .trim()
+            .to_string()
     }
 
     fn extract_style(paragraph: &str) -> Option<String> {
@@ -766,6 +864,20 @@ pub mod docx {
         let value_start = rest.find(attr)? + attr.len();
         let value_end = rest[value_start..].find('"')?;
         Some(rest[value_start..value_start + value_end].to_string())
+    }
+
+    fn remove_blocks(input: &str, open: &str, close: &str) -> String {
+        let mut output = String::new();
+        let mut rest = input;
+        while let Some(start) = rest.find(open) {
+            output.push_str(&rest[..start]);
+            let Some(end_rel) = rest[start..].find(close) else {
+                return output;
+            };
+            rest = &rest[start + end_rel + close.len()..];
+        }
+        output.push_str(rest);
+        output
     }
 
     fn is_caption(text: &str) -> bool {
@@ -860,22 +972,140 @@ pub mod pdf {
     use super::AstNode;
 
     pub fn parse_pdf(bytes: &[u8], warnings: &mut Vec<String>) -> Vec<AstNode> {
-        warnings.push("PDF parser currently extracts readable text heuristically; layout inference is limited.".to_string());
         let lossy = String::from_utf8_lossy(bytes);
-        let text = lossy
-            .lines()
-            .filter(|line| line.chars().any(|ch| ch.is_alphanumeric()))
-            .take(200)
-            .collect::<Vec<_>>()
-            .join("\n");
-        if text.trim().is_empty() {
+        warnings.push(
+            "PDF parser extracts text objects; coordinates and layout inference are limited."
+                .to_string(),
+        );
+        let text_objects = extract_text_objects(&lossy);
+        if text_objects.is_empty() {
             warnings.push("PDF text extraction produced no text; OCR may be required.".to_string());
             vec![AstNode::Paragraph(
                 "PDF content requires OCR or a full PDF backend.".to_string(),
             )]
         } else {
-            infer_headings(&text)
+            infer_nodes_from_text_objects(text_objects, warnings)
         }
+    }
+
+    #[derive(Clone, Debug)]
+    struct TextObject {
+        text: String,
+        font_size: Option<f32>,
+    }
+
+    fn extract_text_objects(input: &str) -> Vec<TextObject> {
+        let mut objects = Vec::new();
+        let mut rest = input;
+        while let Some(start) = rest.find("BT") {
+            let after_start = &rest[start + 2..];
+            let Some(end) = after_start.find("ET") else {
+                break;
+            };
+            let block = &after_start[..end];
+            objects.extend(extract_block_text_objects(block));
+            rest = &after_start[end + 2..];
+        }
+        objects
+    }
+
+    fn extract_block_text_objects(block: &str) -> Vec<TextObject> {
+        let mut objects = Vec::new();
+        let mut current_font_size = None;
+        for line in block.lines() {
+            if let Some(font_size) = parse_font_size(line) {
+                current_font_size = Some(font_size);
+            }
+            for text in extract_literal_strings(line) {
+                let text = text.trim().to_string();
+                if !text.is_empty() {
+                    objects.push(TextObject {
+                        text,
+                        font_size: current_font_size,
+                    });
+                }
+            }
+        }
+        objects
+    }
+
+    fn parse_font_size(line: &str) -> Option<f32> {
+        let tokens = line.split_whitespace().collect::<Vec<_>>();
+        let tf_index = tokens.iter().position(|token| *token == "Tf")?;
+        if tf_index == 0 {
+            return None;
+        }
+        tokens.get(tf_index - 1)?.parse::<f32>().ok()
+    }
+
+    fn extract_literal_strings(input: &str) -> Vec<String> {
+        let mut strings = Vec::new();
+        let mut chars = input.chars().peekable();
+        while let Some(character) = chars.next() {
+            if character != '(' {
+                continue;
+            }
+            let mut value = String::new();
+            let mut escaped = false;
+            for next in chars.by_ref() {
+                if escaped {
+                    value.push(match next {
+                        'n' => '\n',
+                        'r' => '\r',
+                        't' => '\t',
+                        'b' => '\u{0008}',
+                        'f' => '\u{000c}',
+                        '(' | ')' | '\\' => next,
+                        other => other,
+                    });
+                    escaped = false;
+                } else if next == '\\' {
+                    escaped = true;
+                } else if next == ')' {
+                    break;
+                } else {
+                    value.push(next);
+                }
+            }
+            strings.push(value);
+        }
+        strings
+    }
+
+    fn infer_nodes_from_text_objects(
+        objects: Vec<TextObject>,
+        warnings: &mut Vec<String>,
+    ) -> Vec<AstNode> {
+        let max_font_size = objects
+            .iter()
+            .filter_map(|object| object.font_size)
+            .fold(0.0_f32, f32::max);
+        let min_font_size = objects
+            .iter()
+            .filter_map(|object| object.font_size)
+            .filter(|size| *size > 0.0)
+            .fold(f32::MAX, f32::min);
+        let can_infer_headings = max_font_size.is_finite()
+            && min_font_size.is_finite()
+            && max_font_size >= min_font_size + 4.0;
+
+        objects
+            .into_iter()
+            .map(|object| {
+                if can_infer_headings && object.font_size == Some(max_font_size) {
+                    warnings.push(format!(
+                        "PDF heading inference treated '{}' as h1 by font size.",
+                        object.text
+                    ));
+                    AstNode::Heading {
+                        level: 1,
+                        text: object.text,
+                    }
+                } else {
+                    AstNode::Paragraph(object.text)
+                }
+            })
+            .collect()
     }
 
     pub fn infer_headings(text: &str) -> Vec<AstNode> {
@@ -905,16 +1135,38 @@ pub mod ocr {
     use std::path::Path;
     use std::process::Command;
 
+    pub trait OcrBackend {
+        fn recognize(&self, input: &Path) -> io::Result<String>;
+    }
+
+    pub fn recognize_with(backend: &dyn OcrBackend, input: &Path) -> io::Result<String> {
+        backend.recognize(input)
+    }
+
+    pub struct SubprocessOcrBackend {
+        pub engine: OcrEngine,
+    }
+
+    impl OcrBackend for SubprocessOcrBackend {
+        fn recognize(&self, input: &Path) -> io::Result<String> {
+            run_subprocess(&self.engine, input)
+        }
+    }
+
+    pub fn command_for_engine(engine: &OcrEngine) -> Option<&str> {
+        match engine {
+            OcrEngine::NdlOcrLite => Some("ndlocr-lite"),
+            OcrEngine::NdlKoten => Some("ndl-koten-ocr"),
+            OcrEngine::Tesseract => Some("tesseract"),
+            OcrEngine::Surya => Some("surya_ocr"),
+            OcrEngine::External(command) => Some(command),
+            OcrEngine::Auto | OcrEngine::None => None,
+        }
+    }
+
     pub fn run_subprocess(engine: &OcrEngine, input: &Path) -> io::Result<String> {
-        let command = match engine {
-            OcrEngine::NdlOcrLite => "ndlocr-lite",
-            OcrEngine::NdlKoten => "ndl-koten-ocr",
-            OcrEngine::Tesseract => "tesseract",
-            OcrEngine::Surya => "surya_ocr",
-            OcrEngine::External(command) => command,
-            OcrEngine::Auto | OcrEngine::None => {
-                return Ok(String::new());
-            }
+        let Some(command) = command_for_engine(engine) else {
+            return Ok(String::new());
         };
         let output = Command::new(command).arg(input).output()?;
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -951,10 +1203,12 @@ pub mod llm {
 }
 
 pub fn evaluate_structure_fidelity(expected: &[AstNode], actual: &[AstNode]) -> MetricScore {
-    let total = expected.len().max(1);
-    let matched = expected
+    let expected_signature = structure_signature(expected);
+    let actual_signature = structure_signature(actual);
+    let total = expected_signature.len().max(1);
+    let matched = expected_signature
         .iter()
-        .zip(actual)
+        .zip(actual_signature.iter())
         .filter(|(left, right)| node_kind(left) == node_kind(right))
         .count();
     MetricScore {
@@ -966,44 +1220,47 @@ pub fn evaluate_structure_fidelity(expected: &[AstNode], actual: &[AstNode]) -> 
 }
 
 pub fn evaluate_heading_recall(expected: &[AstNode], markdown: &str) -> MetricScore {
-    let expected_headings = expected
+    let expected_headings = collect_headings(expected);
+    let actual_headings = markdown
+        .lines()
+        .filter_map(parse_markdown_heading)
+        .collect::<Vec<_>>();
+    let missing = expected_headings
         .iter()
-        .filter_map(|node| match node {
-            AstNode::Heading { text, .. } => Some(text),
-            _ => None,
+        .filter(|expected| {
+            !actual_headings.iter().any(|actual| {
+                expected.level == actual.level && expected.text.trim() == actual.text.trim()
+            })
         })
         .collect::<Vec<_>>();
-    let found = expected_headings
-        .iter()
-        .filter(|heading| {
-            markdown
-                .lines()
-                .any(|line| line.trim_start_matches('#').trim() == heading.trim())
-        })
-        .count();
     let total = expected_headings.len().max(1);
+    let found = expected_headings.len().saturating_sub(missing.len());
     MetricScore {
         name: "heading_recall".to_string(),
         score: found as f64 / total as f64,
-        errors: total.saturating_sub(found),
-        warnings: Vec::new(),
+        errors: missing.len(),
+        warnings: missing
+            .into_iter()
+            .map(|heading| format!("missing heading h{} {}", heading.level, heading.text))
+            .collect(),
     }
 }
 
 pub fn evaluate_table_integrity(markdown: &str) -> MetricScore {
-    let has_pipe_table = markdown.lines().any(|line| line.trim().starts_with('|'))
-        && markdown.lines().any(|line| line.contains("---"));
-    let has_html_table = markdown.contains("<table>") && markdown.contains("</table>");
-    let score = if has_pipe_table || has_html_table {
-        1.0
-    } else {
-        0.0
-    };
+    let mut warnings = Vec::new();
+    let mut errors = 0;
+    let has_pipe_table = evaluate_pipe_tables(markdown, &mut warnings, &mut errors);
+    let has_html_table = evaluate_html_tables(markdown, &mut warnings, &mut errors);
+    if !has_pipe_table && !has_html_table {
+        errors += 1;
+        warnings.push("no table detected".to_string());
+    }
+    let score = if errors == 0 { 1.0 } else { 0.0 };
     MetricScore {
         name: "table_integrity".to_string(),
         score,
-        errors: usize::from(score < 1.0),
-        warnings: Vec::new(),
+        errors,
+        warnings,
     }
 }
 
@@ -1017,6 +1274,42 @@ pub fn evaluate_lint_score(markdown: &str) -> MetricScore {
     if markdown.lines().any(|line| line.ends_with(' ')) {
         errors += 1;
         warnings.push("Markdown contains trailing spaces.".to_string());
+    }
+    let lines = markdown.lines().collect::<Vec<_>>();
+    for (index, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') {
+            if index > 0 && !lines[index - 1].trim().is_empty() {
+                errors += 1;
+                warnings.push("Markdown heading must be preceded by a blank line.".to_string());
+            }
+            if index + 1 < lines.len() && !lines[index + 1].trim().is_empty() {
+                errors += 1;
+                warnings.push("Markdown heading must be followed by a blank line.".to_string());
+            }
+        }
+        if trimmed.starts_with("- ") {
+            if index > 0 && !lines[index - 1].trim().is_empty() {
+                errors += 1;
+                warnings.push("Markdown list must be preceded by a blank line.".to_string());
+            }
+            if index + 1 < lines.len() && !lines[index + 1].trim().is_empty() {
+                errors += 1;
+                warnings.push("Markdown list must be followed by a blank line.".to_string());
+            }
+        }
+        if trimmed.starts_with('|') {
+            let previous_is_table = index > 0 && lines[index - 1].trim().starts_with('|');
+            let next_is_table = index + 1 < lines.len() && lines[index + 1].trim().starts_with('|');
+            if !previous_is_table && index > 0 && !lines[index - 1].trim().is_empty() {
+                errors += 1;
+                warnings.push("Markdown table must be preceded by a blank line.".to_string());
+            }
+            if !next_is_table && index + 1 < lines.len() && !lines[index + 1].trim().is_empty() {
+                errors += 1;
+                warnings.push("Markdown table must be followed by a blank line.".to_string());
+            }
+        }
     }
     MetricScore {
         name: "lint_score".to_string(),
@@ -1035,6 +1328,25 @@ pub fn evaluate_ocr_cer(expected: &str, actual: &str) -> MetricScore {
         errors: distance,
         warnings: Vec::new(),
     }
+}
+
+pub fn evaluate_ocr_cer_by_group(cases: &[OcrCerCase]) -> Vec<MetricScore> {
+    let mut grouped = BTreeMap::<(&str, &str), (String, String)>::new();
+    for case in cases {
+        let entry = grouped
+            .entry((case.language.as_str(), case.orientation.as_str()))
+            .or_default();
+        entry.0.push_str(&case.expected);
+        entry.1.push_str(&case.actual);
+    }
+    grouped
+        .into_iter()
+        .map(|((language, orientation), (expected, actual))| {
+            let mut score = evaluate_ocr_cer(&expected, &actual);
+            score.name = format!("ocr_cer:{language}:{orientation}");
+            score
+        })
+        .collect()
 }
 
 pub fn evaluate_translation_structure_preserve(before: &str, after: &str) -> MetricScore {
@@ -1132,6 +1444,31 @@ fn render(ast: &[AstNode], options: &ConversionOptions) -> String {
     }
 }
 
+fn collect_media_paths(ast: &[AstNode]) -> Vec<String> {
+    let mut media = Vec::new();
+    for node in ast {
+        match node {
+            AstNode::Image { path, .. } => media.push(path.clone()),
+            AstNode::Table { rows } => {
+                for row in rows {
+                    for cell in &row.cells {
+                        if let Some(image) = &cell.image {
+                            media.push(image.clone());
+                        }
+                    }
+                }
+            }
+            AstNode::List { items, .. } => {
+                for item in items {
+                    media.extend(collect_media_paths(item));
+                }
+            }
+            _ => {}
+        }
+    }
+    media
+}
+
 fn ast_to_html(ast: &[AstNode]) -> String {
     let mut output = String::new();
     for node in ast {
@@ -1183,18 +1520,184 @@ fn unsupported_node(format: &str) -> AstNode {
     AstNode::Paragraph(format!("Unsupported input format: {format}"))
 }
 
-fn node_kind(node: &AstNode) -> &'static str {
-    match node {
-        AstNode::Heading { .. } => "heading",
-        AstNode::Paragraph(_) => "paragraph",
-        AstNode::List { .. } => "list",
-        AstNode::Text(_) => "text",
-        AstNode::Table { .. } => "table",
-        AstNode::Image { .. } => "image",
-        AstNode::CodeBlock { .. } => "code",
-        AstNode::Footnote { .. } => "footnote",
-        AstNode::RawHtml(_) => "raw_html",
+fn structure_signature(nodes: &[AstNode]) -> Vec<String> {
+    let mut signature = Vec::new();
+    for node in nodes {
+        push_node_signature(node, &mut signature);
     }
+    signature
+}
+
+fn push_node_signature(node: &AstNode, signature: &mut Vec<String>) {
+    match node {
+        AstNode::Heading { level, .. } => signature.push(format!("heading:{level}")),
+        AstNode::Paragraph(_) => signature.push("paragraph".to_string()),
+        AstNode::List { ordered, items } => {
+            signature.push(format!(
+                "list:{}",
+                if *ordered { "ordered" } else { "unordered" }
+            ));
+            for item in items {
+                signature.push("list-item".to_string());
+                for node in item {
+                    push_node_signature(node, signature);
+                }
+            }
+        }
+        AstNode::Text(_) => signature.push("text".to_string()),
+        AstNode::Table { rows } => {
+            signature.push("table".to_string());
+            for row in rows {
+                signature.push("table-row".to_string());
+                for cell in &row.cells {
+                    signature.push(format!(
+                        "table-cell:rowspan={}:colspan={}:image={}",
+                        cell.rowspan,
+                        cell.colspan,
+                        cell.image.is_some()
+                    ));
+                }
+            }
+        }
+        AstNode::Image { title, .. } => {
+            signature.push(format!("image:title={}", title.is_some()));
+        }
+        AstNode::CodeBlock { language, .. } => {
+            signature.push(format!("code:language={}", language.is_some()));
+        }
+        AstNode::Footnote { .. } => signature.push("footnote".to_string()),
+        AstNode::RawHtml(_) => signature.push("raw-html".to_string()),
+    }
+}
+
+fn node_kind(node: &String) -> &str {
+    node
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct HeadingRef {
+    level: u8,
+    text: String,
+}
+
+fn collect_headings(nodes: &[AstNode]) -> Vec<HeadingRef> {
+    let mut headings = Vec::new();
+    for node in nodes {
+        match node {
+            AstNode::Heading { level, text } => headings.push(HeadingRef {
+                level: *level,
+                text: text.clone(),
+            }),
+            AstNode::List { items, .. } => {
+                for item in items {
+                    headings.extend(collect_headings(item));
+                }
+            }
+            _ => {}
+        }
+    }
+    headings
+}
+
+fn parse_markdown_heading(line: &str) -> Option<HeadingRef> {
+    let trimmed = line.trim_start();
+    let marker_count = trimmed
+        .chars()
+        .take_while(|character| *character == '#')
+        .count();
+    if !(1..=6).contains(&marker_count) {
+        return None;
+    }
+    let content = trimmed.get(marker_count..)?;
+    if !content.starts_with(' ') {
+        return None;
+    }
+    let text = content.trim().trim_end_matches('#').trim();
+    if text.is_empty() {
+        return None;
+    }
+    Some(HeadingRef {
+        level: marker_count as u8,
+        text: text.to_string(),
+    })
+}
+
+fn evaluate_pipe_tables(markdown: &str, warnings: &mut Vec<String>, errors: &mut usize) -> bool {
+    let lines = markdown.lines().collect::<Vec<_>>();
+    let mut found = false;
+    let mut index = 0;
+    while index < lines.len() {
+        if !lines[index].trim_start().starts_with('|') {
+            index += 1;
+            continue;
+        }
+
+        let start = index;
+        while index < lines.len() && lines[index].trim_start().starts_with('|') {
+            index += 1;
+        }
+        let table_lines = &lines[start..index];
+        if table_lines.len() < 2 || !table_lines.iter().any(|line| is_pipe_separator(line)) {
+            continue;
+        }
+
+        found = true;
+        let expected_cells = pipe_cell_count(table_lines[0]);
+        for (offset, line) in table_lines.iter().enumerate() {
+            let actual_cells = pipe_cell_count(line);
+            if actual_cells != expected_cells {
+                *errors += 1;
+                warnings.push(format!(
+                    "pipe table row {} has {} cells, expected {}",
+                    start + offset + 1,
+                    actual_cells,
+                    expected_cells
+                ));
+            }
+        }
+    }
+    found
+}
+
+fn evaluate_html_tables(markdown: &str, warnings: &mut Vec<String>, errors: &mut usize) -> bool {
+    let lower = markdown.to_ascii_lowercase();
+    let open_count = lower.matches("<table").count();
+    let close_count = lower.matches("</table>").count();
+    if open_count == 0 && close_count == 0 {
+        return false;
+    }
+    if open_count > close_count {
+        *errors += open_count - close_count;
+        warnings.push("unclosed html table".to_string());
+    } else if close_count > open_count {
+        *errors += close_count - open_count;
+        warnings.push("html table close tag without open tag".to_string());
+    }
+    true
+}
+
+fn is_pipe_separator(line: &str) -> bool {
+    let cells = pipe_cells(line);
+    !cells.is_empty()
+        && cells.iter().all(|cell| {
+            let trimmed = cell.trim();
+            trimmed.len() >= 3
+                && trimmed
+                    .chars()
+                    .all(|character| matches!(character, '-' | ':' | ' '))
+        })
+}
+
+fn pipe_cell_count(line: &str) -> usize {
+    pipe_cells(line).len()
+}
+
+fn pipe_cells(line: &str) -> Vec<&str> {
+    line.trim()
+        .trim_matches('|')
+        .split('|')
+        .map(str::trim)
+        .collect()
 }
 
 fn flavor_name(flavor: Flavor) -> &'static str {

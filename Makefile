@@ -7,7 +7,7 @@ test:
 
 eval:
 	cargo test --test integration
-	cargo run --bin bonjil -- README.md --report target/eval-report.json >/dev/null
+	cargo run --bin bonjil-eval -- tests/fixtures/unit/docx target/eval-report.json
 	cat target/eval-report.json
 
 review:
@@ -17,13 +17,13 @@ bench:
 	cargo run --bin bonjil -- tests/fixtures/unit/html/basic.html >/dev/null
 
 compare-baseline:
-	cargo test
+	cargo run --bin bonjil-compare-baseline -- target/eval-report.json tests/thresholds.toml
 
 fmt:
 	cargo fmt
 
 lint:
-	markdownlint-cli2 README.md docs/*.md CLAUDE.md tests/fixtures/**/*.md benches/README.md
+	markdownlint-cli2 README.md docs/*.md CLAUDE.md AGENTS.local.md tests/fixtures/**/*.md benches/README.md
 
 clippy:
 	cargo clippy --all-targets --all-features -- -D warnings

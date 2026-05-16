@@ -6,7 +6,7 @@ test:
 
 eval:
     cargo test --test integration
-    cargo run --bin bonjil -- README.md --report target/eval-report.json >/dev/null
+    cargo run --bin bonjil-eval -- tests/fixtures/unit/docx target/eval-report.json
     cat target/eval-report.json
 
 review:
