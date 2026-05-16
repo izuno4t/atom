@@ -50,21 +50,21 @@
 | TASK-025 | ✅ | 実装するocr_cer評価 | TASK-024 |
 | TASK-026 | ✅ | 実装する画像抽出とmedia出力 | TASK-025 |
 | TASK-027 | ✅ | 実装するキャプション保持 | TASK-026 |
-| TASK-028 | ⏳ | 実装する変換report JSON | TASK-027 |
-| TASK-029 | ⏳ | 実装するLLMバックエンド抽象化 | TASK-028 |
-| TASK-030 | ⏳ | 実装するLLM送信確認と同意設定 | TASK-029 |
-| TASK-031 | ⏳ | 実装するLLM再構造化filter | TASK-030 |
-| TASK-032 | ⏳ | 実装するLLM翻訳filter | TASK-031 |
-| TASK-033 | ⏳ | 実装するLLM差分保存 | TASK-032 |
-| TASK-034 | ⏳ | 実装するtranslation_structure_preserve評価 | TASK-033 |
-| TASK-035 | ⏳ | 実装するPPTX入力パーサ | TASK-034 |
-| TASK-036 | ⏳ | 実装するXLSX入力パーサ | TASK-034 |
-| TASK-037 | ⏳ | 実装するHTMLテーブルフォールバック | TASK-035,TASK-036 |
-| TASK-038 | ⏳ | 実装するWMF/EMFラスタライズ | TASK-037 |
-| TASK-039 | ⏳ | 実装する設定ファイルbonjil.toml | TASK-038 |
-| TASK-040 | ⏳ | 実装するライブラリAPI | TASK-039 |
-| TASK-041 | ⏳ | 整備する性能ベンチマーク | TASK-040 |
-| TASK-042 | ⏳ | 整備するクロスプラットフォーム配布 | TASK-041 |
+| TASK-028 | ✅ | 実装する変換report JSON | TASK-027 |
+| TASK-029 | ✅ | 実装するLLMバックエンド抽象化 | TASK-028 |
+| TASK-030 | ✅ | 実装するLLM送信確認と同意設定 | TASK-029 |
+| TASK-031 | ✅ | 実装するLLM再構造化filter | TASK-030 |
+| TASK-032 | ✅ | 実装するLLM翻訳filter | TASK-031 |
+| TASK-033 | ✅ | 実装するLLM差分保存 | TASK-032 |
+| TASK-034 | ✅ | 実装するtranslation_structure_preserve評価 | TASK-033 |
+| TASK-035 | ✅ | 実装するPPTX入力パーサ | TASK-034 |
+| TASK-036 | ✅ | 実装するXLSX入力パーサ | TASK-034 |
+| TASK-037 | ✅ | 実装するHTMLテーブルフォールバック | TASK-035,TASK-036 |
+| TASK-038 | ✅ | 実装するWMF/EMFラスタライズ | TASK-037 |
+| TASK-039 | ✅ | 実装する設定ファイルbonjil.toml | TASK-038 |
+| TASK-040 | ✅ | 実装するライブラリAPI | TASK-039 |
+| TASK-041 | ✅ | 整備する性能ベンチマーク | TASK-040 |
+| TASK-042 | ✅ | 整備するクロスプラットフォーム配布 | TASK-041 |
 
 ## タスク詳細（補足が必要な場合のみ）
 

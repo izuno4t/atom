@@ -94,6 +94,29 @@ fn conversion_report_lists_referenced_media() {
 }
 
 #[test]
+fn conversion_report_json_lists_used_features() {
+    let converter = Converter::new().with_options(ConversionOptions {
+        flavor: Flavor::Gfm,
+        ocr: bonjil::OcrEngine::NdlOcrLite,
+        extract_media: Some("target/media-report-test".into()),
+        ..ConversionOptions::default()
+    });
+
+    let result = converter
+        .convert_bytes(
+            "page.html",
+            br#"<img src="media/chart.png" alt="Chart" title="Figure 1">"#,
+        )
+        .unwrap();
+    let report = result.report.to_json();
+
+    assert!(report.contains("\"features\""));
+    assert!(report.contains("\"ocr:ndlocr-lite\""));
+    assert!(report.contains("\"extract_media\""));
+    assert!(report.contains("\"media:referenced\""));
+}
+
+#[test]
 fn converts_html_in_document_order_and_ignores_scripts() {
     let converter = Converter::new().with_options(ConversionOptions {
         flavor: Flavor::Gfm,
@@ -138,6 +161,25 @@ fn falls_back_to_html_table_for_complex_tables() {
 
     assert!(actual.contains("<table>"));
     assert!(actual.contains("rowspan=\"2\""));
+}
+
+#[test]
+fn falls_back_to_html_table_for_image_cells() {
+    let ast = vec![AstNode::Table {
+        rows: vec![TableRow {
+            cells: vec![TableCell {
+                text: "Diagram".to_string(),
+                rowspan: 1,
+                colspan: 1,
+                image: Some("media/diagram.png".to_string()),
+            }],
+        }],
+    }];
+
+    let actual = markdown::write_markdown(&ast, Flavor::Gfm);
+
+    assert!(actual.starts_with("<table>"));
+    assert!(actual.contains("<img src=\"media/diagram.png\" alt=\"Diagram\">"));
 }
 
 #[test]
@@ -221,6 +263,43 @@ fn reports_unsupported_formats_without_external_calls() {
     );
     assert!(result.markdown.contains("Unsupported input format"));
     assert!(!result.report.used_llm);
+}
+
+#[test]
+fn converts_pptx_slide_xml_bytes_to_markdown() {
+    let converter = Converter::new().with_options(ConversionOptions {
+        flavor: Flavor::CommonMark,
+        ..ConversionOptions::default()
+    });
+    let result = converter
+        .convert_bytes(
+            "slides.pptx",
+            br#"<p:sld><p:cSld><p:spTree><a:p><a:r><a:t>Slide title</a:t></a:r></a:p><a:p><a:r><a:t>Slide body</a:t></a:r></a:p></p:spTree></p:cSld></p:sld>"#,
+        )
+        .unwrap();
+
+    assert_eq!(result.markdown, "# Slide title\n\nSlide body\n");
+    assert_eq!(result.report.input_format, "pptx");
+}
+
+#[test]
+fn converts_xlsx_sheet_xml_bytes_to_markdown_table() {
+    let converter = Converter::new().with_options(ConversionOptions {
+        flavor: Flavor::Gfm,
+        ..ConversionOptions::default()
+    });
+    let result = converter
+        .convert_bytes(
+            "sheet.xlsx",
+            br#"<worksheet><sheetData><row><c><v>Name</v></c><c><v>Value</v></c></row><row><c><v>Alpha</v></c><c><v>42</v></c></row></sheetData></worksheet>"#,
+        )
+        .unwrap();
+
+    assert_eq!(
+        result.markdown,
+        "| Name | Value |\n| --- | --- |\n| Alpha | 42 |\n"
+    );
+    assert_eq!(result.report.input_format, "xlsx");
 }
 
 #[test]

@@ -14,7 +14,7 @@ review:
 	cargo test
 
 bench:
-	cargo run --bin bonjil -- tests/fixtures/unit/html/basic.html >/dev/null
+	cargo run --bin bonjil-bench -- tests/fixtures/unit/html/basic.html 10
 
 compare-baseline:
 	cargo run --bin bonjil-compare-baseline -- target/eval-report.json tests/thresholds.toml

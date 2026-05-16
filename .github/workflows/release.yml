@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: build-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        run: cargo build --release
+      - name: Package Unix
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p dist
+          cp target/release/bonjil dist/bonjil-${{ runner.os }}
+          cp target/release/bonjil-eval dist/bonjil-eval-${{ runner.os }}
+          cp target/release/bonjil-bench dist/bonjil-bench-${{ runner.os }}
+      - name: Package Windows
+        if: runner.os == 'Windows'
+        run: |
+          mkdir dist
+          copy target\release\bonjil.exe dist\bonjil-Windows.exe
+          copy target\release\bonjil-eval.exe dist\bonjil-eval-Windows.exe
+          copy target\release\bonjil-bench.exe dist\bonjil-bench-Windows.exe
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bonjil-${{ runner.os }}
+          path: dist/*

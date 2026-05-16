@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
@@ -140,6 +140,7 @@ pub struct ConversionReport {
     pub used_llm: bool,
     pub llm_destination: Option<String>,
     pub media: Vec<String>,
+    pub features: Vec<String>,
 }
 
 impl ConversionReport {
@@ -158,6 +159,7 @@ impl ConversionReport {
             .collect::<Vec<_>>()
             .join(",");
         let media = json_array(&self.media);
+        let features = json_array(&self.features);
         format!(
             concat!(
                 "{{",
@@ -172,7 +174,8 @@ impl ConversionReport {
                 "\"ocr_engine\":{},",
                 "\"used_llm\":{},",
                 "\"llm_destination\":{},",
-                "\"media\":{}",
+                "\"media\":{},",
+                "\"features\":{}",
                 "}}\n"
             ),
             escape_json(&self.input_path),
@@ -186,7 +189,8 @@ impl ConversionReport {
             json_option(self.ocr_engine.as_deref()),
             self.used_llm,
             json_option(self.llm_destination.as_deref()),
-            media
+            media,
+            features
         )
     }
 }
@@ -258,12 +262,29 @@ impl Converter {
                 );
                 vec![unsupported_node("DOCX in-memory input")]
             }
-            "pptx" | "xlsx" => {
-                warnings.push(format!(
-                    "could not read {} package from in-memory bytes",
-                    input_format
-                ));
-                vec![unsupported_node(&input_format)]
+            "pptx" => {
+                let text = std::str::from_utf8(bytes).unwrap_or_default();
+                if text.contains("<p:sld") {
+                    office::parse_pptx_slide_xml(text)
+                } else {
+                    warnings.push(format!(
+                        "could not read {} package from in-memory bytes",
+                        input_format
+                    ));
+                    vec![unsupported_node(&input_format)]
+                }
+            }
+            "xlsx" => {
+                let text = std::str::from_utf8(bytes).unwrap_or_default();
+                if text.contains("<worksheet") {
+                    office::parse_xlsx_sheet_xml(text, "")
+                } else {
+                    warnings.push(format!(
+                        "could not read {} package from in-memory bytes",
+                        input_format
+                    ));
+                    vec![unsupported_node(&input_format)]
+                }
             }
             _ => {
                 warnings.push(format!("unsupported input format: {input_format}"));
@@ -286,6 +307,7 @@ impl Converter {
         media.sort();
         media.dedup();
         metadata.push(("nodes".to_string(), ast.len().to_string()));
+        let features = report_features(&self.options, &media);
         let rendered = render(&ast, &self.options);
         let report = ConversionReport {
             input_path: input_name.to_string(),
@@ -301,6 +323,7 @@ impl Converter {
             used_llm: self.options.llm != LlmBackend::None,
             llm_destination: llm_destination(&self.options.llm),
             media,
+            features,
         };
         Ok(ConversionResult {
             ast,
@@ -338,6 +361,7 @@ impl Converter {
         let mut media = collect_media_paths(&ast);
         media.sort();
         media.dedup();
+        let features = report_features(&self.options, &media);
         Ok(ConversionResult {
             ast,
             markdown: rendered,
@@ -354,6 +378,7 @@ impl Converter {
                 used_llm: self.options.llm != LlmBackend::None,
                 llm_destination: llm_destination(&self.options.llm),
                 media,
+                features,
             },
         })
     }
@@ -363,6 +388,26 @@ impl Default for Converter {
     fn default() -> Self {
         Self::new()
     }
+}
+
+pub fn convert_bytes(
+    input_name: &str,
+    bytes: &[u8],
+    options: ConversionOptions,
+) -> io::Result<ConversionResult> {
+    Converter::new()
+        .with_options(options)
+        .convert_bytes(input_name, bytes)
+}
+
+pub fn convert_reader<R: Read>(
+    input_name: &str,
+    mut reader: R,
+    options: ConversionOptions,
+) -> io::Result<ConversionResult> {
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes)?;
+    convert_bytes(input_name, &bytes, options)
 }
 
 pub mod markdown {
@@ -1175,7 +1220,183 @@ pub mod ocr {
 
 pub mod llm {
     use super::{AstNode, ConversionOptions, LlmBackend};
+    use std::fs;
     use std::io;
+    use std::path::Path;
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct LlmRequest {
+        pub backend: LlmBackend,
+        pub task: String,
+        pub input: String,
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct LlmResponse {
+        pub text: String,
+        pub backend: String,
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct LlmSendConfirmation {
+        pub destination: String,
+        pub content_bytes: usize,
+        pub consent_granted: bool,
+        pub message: String,
+    }
+
+    pub trait LlmProvider {
+        fn complete(&self, request: &LlmRequest) -> io::Result<LlmResponse>;
+    }
+
+    pub fn complete_with(
+        provider: &dyn LlmProvider,
+        request: &LlmRequest,
+    ) -> io::Result<LlmResponse> {
+        provider.complete(request)
+    }
+
+    pub fn backend_name(backend: &LlmBackend) -> &'static str {
+        match backend {
+            LlmBackend::None => "none",
+            LlmBackend::Anthropic(_) => "anthropic",
+            LlmBackend::OpenAi(_) => "openai",
+            LlmBackend::Ollama(_) => "ollama",
+            LlmBackend::OpenAiCompatible { .. } => "openai-compatible",
+        }
+    }
+
+    pub fn build_send_confirmation(
+        backend: &LlmBackend,
+        content: &str,
+        consent_granted: bool,
+    ) -> Option<LlmSendConfirmation> {
+        if matches!(backend, LlmBackend::None | LlmBackend::Ollama(_)) {
+            return None;
+        }
+        let destination = match backend {
+            LlmBackend::Anthropic(_) => "Anthropic".to_string(),
+            LlmBackend::OpenAi(_) => "OpenAI".to_string(),
+            LlmBackend::OpenAiCompatible { endpoint, name } if !endpoint.is_empty() => {
+                endpoint.clone().to_string()
+            }
+            LlmBackend::OpenAiCompatible { name, .. } => name.clone(),
+            LlmBackend::None | LlmBackend::Ollama(_) => unreachable!(),
+        };
+        Some(LlmSendConfirmation {
+            destination: destination.clone(),
+            content_bytes: content.len(),
+            consent_granted,
+            message: if consent_granted {
+                format!(
+                    "external send consent granted for {destination}; {} byte(s) will be sent",
+                    content.len()
+                )
+            } else {
+                format!(
+                    "external send consent is required for {destination}; {} byte(s) would be sent",
+                    content.len()
+                )
+            },
+        })
+    }
+
+    pub fn restructure_with_provider(
+        provider: &dyn LlmProvider,
+        backend: &LlmBackend,
+        ast: &[AstNode],
+    ) -> io::Result<Vec<AstNode>> {
+        run_markdown_transform(provider, backend, "restructure", ast)
+    }
+
+    pub fn translate_with_provider(
+        provider: &dyn LlmProvider,
+        backend: &LlmBackend,
+        language: &str,
+        ast: &[AstNode],
+    ) -> io::Result<Vec<AstNode>> {
+        run_markdown_transform(provider, backend, &format!("translate:{language}"), ast)
+    }
+
+    fn run_markdown_transform(
+        provider: &dyn LlmProvider,
+        backend: &LlmBackend,
+        task: &str,
+        ast: &[AstNode],
+    ) -> io::Result<Vec<AstNode>> {
+        let input = ast
+            .iter()
+            .map(|node| match node {
+                AstNode::Heading { level, text } => {
+                    format!("{} {text}", "#".repeat(*level as usize))
+                }
+                AstNode::Paragraph(text) | AstNode::Text(text) => text.clone(),
+                other => format!("{other:?}"),
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        let response = complete_with(
+            provider,
+            &LlmRequest {
+                backend: backend.clone(),
+                task: task.to_string(),
+                input,
+            },
+        )?;
+        Ok(parse_markdown_blocks(&response.text))
+    }
+
+    fn parse_markdown_blocks(markdown: &str) -> Vec<AstNode> {
+        markdown
+            .split("\n\n")
+            .filter_map(|block| {
+                let trimmed = block.trim();
+                if trimmed.is_empty() {
+                    return None;
+                }
+                let hashes = trimmed
+                    .chars()
+                    .take_while(|character| *character == '#')
+                    .count();
+                if (1..=6).contains(&hashes) && trimmed.chars().nth(hashes) == Some(' ') {
+                    Some(AstNode::Heading {
+                        level: hashes as u8,
+                        text: trimmed[hashes + 1..].trim().to_string(),
+                    })
+                } else {
+                    Some(AstNode::Paragraph(trimmed.to_string()))
+                }
+            })
+            .collect()
+    }
+
+    pub fn save_diff(path: &Path, before: &str, after: &str) -> io::Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, render_diff(before, after))
+    }
+
+    fn render_diff(before: &str, after: &str) -> String {
+        let before_lines = before.lines().collect::<Vec<_>>();
+        let after_lines = after.lines().collect::<Vec<_>>();
+        let mut diff = String::from("--- before\n+++ after\n@@\n");
+        let max_len = before_lines.len().max(after_lines.len());
+        for index in 0..max_len {
+            match (before_lines.get(index), after_lines.get(index)) {
+                (Some(left), Some(right)) if left == right => {
+                    diff.push_str(&format!(" {left}\n"));
+                }
+                (Some(left), Some(right)) => {
+                    diff.push_str(&format!("-{left}\n+{right}\n"));
+                }
+                (Some(left), None) => diff.push_str(&format!("-{left}\n")),
+                (None, Some(right)) => diff.push_str(&format!("+{right}\n")),
+                (None, None) => {}
+            }
+        }
+        diff
+    }
 
     pub fn apply_llm_filters(
         ast: &mut [AstNode],
@@ -1185,6 +1406,18 @@ pub mod llm {
         if options.llm == LlmBackend::None {
             warnings.push("LLM options requested but no LLM backend was selected.".to_string());
             return Ok(());
+        }
+        let content_preview = ast
+            .iter()
+            .map(|node| format!("{node:?}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if let Some(confirmation) = build_send_confirmation(
+            &options.llm,
+            &content_preview,
+            options.consent_external_send,
+        ) {
+            warnings.push(confirmation.message);
         }
         if !options.consent_external_send && !matches!(options.llm, LlmBackend::Ollama(_)) {
             warnings.push(
@@ -1199,6 +1432,35 @@ pub mod llm {
             }
         }
         Ok(())
+    }
+}
+
+pub mod media {
+    use std::io;
+    use std::path::{Path, PathBuf};
+
+    pub trait VectorRasterizer {
+        fn rasterize(&self, input: &Path, output: &Path) -> io::Result<PathBuf>;
+    }
+
+    pub fn is_vector_image(path: &Path) -> bool {
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| matches!(extension.to_ascii_lowercase().as_str(), "wmf" | "emf"))
+            .unwrap_or(false)
+    }
+
+    pub fn rasterize_vector_image(
+        rasterizer: &dyn VectorRasterizer,
+        input: &Path,
+        output_dir: &Path,
+    ) -> io::Result<PathBuf> {
+        let stem = input
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("image");
+        let output = output_dir.join(format!("{stem}.png"));
+        rasterizer.rasterize(input, &output)
     }
 }
 
@@ -1358,11 +1620,21 @@ pub fn evaluate_translation_structure_preserve(before: &str, after: &str) -> Met
         .zip(after_markers.iter())
         .filter(|(left, right)| left == right)
         .count();
+    let warnings = before_markers
+        .iter()
+        .zip(
+            after_markers
+                .iter()
+                .chain(std::iter::repeat(&"missing".to_string())),
+        )
+        .filter(|(left, right)| left != right)
+        .map(|(left, right)| format!("translation structure mismatch: {left} != {right}"))
+        .collect::<Vec<_>>();
     MetricScore {
         name: "translation_structure_preserve".to_string(),
         score: matched as f64 / total as f64,
         errors: total.saturating_sub(matched),
-        warnings: Vec::new(),
+        warnings,
     }
 }
 
@@ -1381,6 +1653,12 @@ pub fn load_config(path: &Path) -> io::Result<ConversionOptions> {
         match key.trim() {
             "flavor" => options.flavor = parse_flavor(value).unwrap_or(options.flavor),
             "format" => options.format = parse_format(value).unwrap_or(options.format),
+            "ocr" => options.ocr = parse_ocr(value),
+            "llm" => options.llm = parse_llm(value),
+            "translate" => options.translate = Some(value.to_string()),
+            "extract_media" => options.extract_media = Some(PathBuf::from(value)),
+            "inline_base64_media" => options.inline_base64_media = value == "true",
+            "restructure" => options.restructure = value == "true",
             "strict" => options.strict = value == "true",
             "consent_external_send" => options.consent_external_send = value == "true",
             _ => {}
@@ -1467,6 +1745,39 @@ fn collect_media_paths(ast: &[AstNode]) -> Vec<String> {
         }
     }
     media
+}
+
+fn report_features(options: &ConversionOptions, media: &[String]) -> Vec<String> {
+    let mut features = vec![
+        format!("format:{}", format_name(options.format)),
+        format!("flavor:{}", flavor_name(options.flavor)),
+    ];
+    if let Some(media_dir) = &options.extract_media {
+        features.push("extract_media".to_string());
+        features.push(format!("extract_media_dir:{}", media_dir.to_string_lossy()));
+    }
+    if options.inline_base64_media {
+        features.push("inline_base64_media".to_string());
+    }
+    if options.ocr != OcrEngine::None {
+        features.push(format!("ocr:{}", ocr_name(&options.ocr)));
+    }
+    if options.llm != LlmBackend::None {
+        features.push(format!(
+            "llm:{}",
+            llm_destination(&options.llm).unwrap_or_else(|| "unknown".to_string())
+        ));
+    }
+    if options.restructure {
+        features.push("llm:restructure".to_string());
+    }
+    if let Some(language) = &options.translate {
+        features.push(format!("llm:translate:{language}"));
+    }
+    if !media.is_empty() {
+        features.push("media:referenced".to_string());
+    }
+    features
 }
 
 fn ast_to_html(ast: &[AstNode]) -> String {
@@ -1800,11 +2111,22 @@ fn decode_entities(input: &str) -> String {
 }
 
 fn structure_markers(markdown: &str) -> Vec<String> {
+    let mut in_code = false;
     markdown
         .lines()
         .filter_map(|line| {
             let trimmed = line.trim_start();
-            if trimmed.starts_with('#') {
+            if trimmed.starts_with("```") {
+                if in_code {
+                    in_code = false;
+                    None
+                } else {
+                    in_code = true;
+                    Some("code".to_string())
+                }
+            } else if in_code {
+                None
+            } else if trimmed.starts_with('#') {
                 Some("#".repeat(trimmed.chars().take_while(|ch| *ch == '#').count()))
             } else if trimmed.starts_with("- ") {
                 Some("-".to_string())

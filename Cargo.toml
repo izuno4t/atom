@@ -21,6 +21,10 @@ path = "src/bin/bonjil-eval.rs"
 name = "bonjil-compare-baseline"
 path = "src/bin/bonjil-compare-baseline.rs"
 
+[[bin]]
+name = "bonjil-bench"
+path = "src/bin/bonjil-bench.rs"
+
 [profile.release]
 lto = true
 strip = true

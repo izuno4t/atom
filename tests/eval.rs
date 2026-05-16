@@ -1,6 +1,7 @@
 use bonjil::{
     AstNode, OcrCerCase, TableCell, TableRow, evaluate_heading_recall, evaluate_lint_score,
     evaluate_ocr_cer_by_group, evaluate_structure_fidelity, evaluate_table_integrity,
+    evaluate_translation_structure_preserve,
 };
 
 #[test]
@@ -180,4 +181,21 @@ fn ocr_cer_can_be_aggregated_by_language_and_orientation() {
     assert_eq!(scores[1].name, "ocr_cer:ja:vertical");
     assert_eq!(scores[1].errors, 1);
     assert!((scores[1].score - 0.6666666666666667).abs() < f64::EPSILON);
+}
+
+#[test]
+fn translation_structure_preserve_detects_code_block_loss() {
+    let before = "# Title\n\n```rust\ncargo test\n```\n\n- item\n";
+    let after = "# タイトル\n\ncargo test\n\n- 項目\n";
+
+    let score = evaluate_translation_structure_preserve(before, after);
+
+    assert!(score.errors >= 1);
+    assert!(score.score < 1.0);
+    assert!(
+        score
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("code"))
+    );
 }
