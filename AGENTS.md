@@ -50,6 +50,9 @@ Run `make regression-test` when output, scoring, or fixtures change.
 Do not weaken evaluation functions to hide failures, and do not lower
 `tests/thresholds.toml` thresholds to mask regressions. Check evaluation
 JSON, diffs, and warnings before changing implementation.
+Use `tests/inputs/` for local pre-evaluation conversion inputs. Files
+placed there are not fixtures, are not expected-output baselines, and
+must stay out of Git except for the directory README and `.gitkeep`.
 
 ## Commit & Pull Request Guidelines
 

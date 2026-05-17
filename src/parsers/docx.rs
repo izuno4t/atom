@@ -1,3 +1,6 @@
+use super::docx_body_order::{DocxBlock, extract_body_blocks};
+use super::docx_media::extract_image_target;
+use super::docx_relationships::{attr_value, extract_attr_values_for_tag, relationship_target};
 use crate::{AstNode, TableCell, TableRow, decode_entities, strip_tags};
 
 pub fn parse_document_xml(xml: &str, warnings: &mut Vec<String>) -> Vec<AstNode> {
@@ -21,68 +24,85 @@ pub fn parse_document_xml_with_rels_and_notes(
 ) -> Vec<AstNode> {
     let mut ast = Vec::new();
     let mut pending_caption: Option<String> = None;
-    let body_without_tables = remove_blocks(xml, "<w:tbl", "</w:tbl>");
-    for paragraph in extract_blocks(&body_without_tables, "<w:p", "</w:p>") {
-        let style = extract_style(&paragraph);
-        let text = extract_text_with_relationships(&paragraph, rels_xml);
-        if paragraph.contains("<w:drawing") {
-            let target = extract_embed_id(&paragraph)
-                .and_then(|id| relationship_target(rels_xml, &id))
-                .unwrap_or_else(|| "media/unknown-image.png".to_string());
-            let alt = pending_caption
-                .clone()
-                .unwrap_or_else(|| "image".to_string());
-            ast.push(AstNode::Image {
-                alt,
-                path: target,
-                title: pending_caption.take(),
-            });
-            continue;
+
+    for block in extract_body_blocks(xml) {
+        match block {
+            DocxBlock::Paragraph(paragraph) => parse_paragraph(
+                &paragraph,
+                rels_xml,
+                footnotes_xml,
+                comments_xml,
+                warnings,
+                &mut pending_caption,
+                &mut ast,
+            ),
+            DocxBlock::Table(table) => ast.push(AstNode::Table {
+                rows: parse_table(&table, rels_xml),
+            }),
         }
-        if text.trim().is_empty() {
-            continue;
-        }
-        if let Some(level) = heading_level(style.as_deref()) {
-            ast.push(AstNode::Heading { level, text });
-        } else if paragraph.contains("<w:numPr") {
-            ast.push(AstNode::List {
-                ordered: false,
-                items: vec![vec![AstNode::Text(text)]],
-            });
-        } else {
-            if is_caption(&text) {
-                pending_caption = Some(text.clone());
-            }
-            if let Some(style) = style.as_deref()
-                && !is_known_paragraph_style(style)
-            {
-                warnings.push(format!("unmapped docx paragraph style: {style}"));
-            }
-            ast.push(AstNode::Paragraph(text));
-        }
-        for id in extract_reference_ids(&paragraph, "w:footnoteReference") {
-            if let Some(text) = note_text_by_id(footnotes_xml, "w:footnote", &id) {
-                ast.push(AstNode::Footnote { label: id, text });
-            }
-        }
-        for id in extract_reference_ids(&paragraph, "w:commentReference") {
-            if let Some(text) = note_text_by_id(comments_xml, "w:comment", &id) {
-                ast.push(AstNode::Footnote {
-                    label: format!("comment:{id}"),
-                    text,
-                });
-            }
-        }
-    }
-    for table in extract_blocks(xml, "<w:tbl", "</w:tbl>") {
-        ast.push(AstNode::Table {
-            rows: parse_table(&table),
-        });
     }
     if ast.is_empty() {
         warnings.push("DOCX document.xml contained no supported paragraphs.".to_string());
     }
     ast
+}
+
+fn parse_paragraph(
+    paragraph: &str,
+    rels_xml: &str,
+    footnotes_xml: &str,
+    comments_xml: &str,
+    warnings: &mut Vec<String>,
+    pending_caption: &mut Option<String>,
+    ast: &mut Vec<AstNode>,
+) {
+    let style = extract_style(paragraph);
+    let text = extract_text_with_relationships(paragraph, rels_xml);
+    if let Some(target) = extract_image_target(paragraph, rels_xml) {
+        let alt = pending_caption
+            .clone()
+            .unwrap_or_else(|| "image".to_string());
+        ast.push(AstNode::Image {
+            alt,
+            path: target,
+            title: pending_caption.take(),
+        });
+        return;
+    }
+    if text.trim().is_empty() {
+        return;
+    }
+    if let Some(level) = heading_level(style.as_deref()) {
+        ast.push(AstNode::Heading { level, text });
+    } else if paragraph.contains("<w:numPr") {
+        ast.push(AstNode::List {
+            ordered: false,
+            items: vec![vec![AstNode::Text(text)]],
+        });
+    } else {
+        if is_caption(&text) {
+            *pending_caption = Some(text.clone());
+        }
+        if let Some(style) = style.as_deref()
+            && !is_known_paragraph_style(style)
+        {
+            warnings.push(format!("unmapped docx paragraph style: {style}"));
+        }
+        ast.push(AstNode::Paragraph(text));
+    }
+    for id in extract_reference_ids(paragraph, "w:footnoteReference") {
+        if let Some(text) = note_text_by_id(footnotes_xml, "w:footnote", &id) {
+            ast.push(AstNode::Footnote { label: id, text });
+        }
+    }
+    for id in extract_reference_ids(paragraph, "w:commentReference") {
+        if let Some(text) = note_text_by_id(comments_xml, "w:comment", &id) {
+            ast.push(AstNode::Footnote {
+                label: format!("comment:{id}"),
+                text,
+            });
+        }
+    }
 }
 
 fn extract_blocks(input: &str, open: &str, close: &str) -> Vec<String> {
@@ -160,7 +180,7 @@ fn heading_level(style: Option<&str>) -> Option<u8> {
     None
 }
 
-fn parse_table(table: &str) -> Vec<TableRow> {
+fn parse_table(table: &str, rels_xml: &str) -> Vec<TableRow> {
     extract_blocks(table, "<w:tr", "</w:tr>")
         .into_iter()
         .map(|row| TableRow {
@@ -170,7 +190,7 @@ fn parse_table(table: &str) -> Vec<TableRow> {
                     text: extract_text(&cell),
                     rowspan: if cell.contains("<w:vMerge") { 2 } else { 1 },
                     colspan: extract_grid_span(&cell).unwrap_or(1),
-                    image: extract_embed_id(&cell).map(|id| format!("media/{id}.png")),
+                    image: extract_image_target(&cell, rels_xml),
                 })
                 .collect(),
         })
@@ -185,23 +205,6 @@ fn extract_grid_span(cell: &str) -> Option<usize> {
     let value_start = rest.find(attr)? + attr.len();
     let value_end = rest[value_start..].find('"')?;
     rest[value_start..value_start + value_end].parse().ok()
-}
-
-fn extract_embed_id(input: &str) -> Option<String> {
-    let attr = "r:embed=\"";
-    let value_start = input.find(attr)? + attr.len();
-    let value_end = input[value_start..].find('"')?;
-    Some(input[value_start..value_start + value_end].to_string())
-}
-
-fn relationship_target(rels_xml: &str, id: &str) -> Option<String> {
-    let marker = format!("Id=\"{id}\"");
-    let start = rels_xml.find(&marker)?;
-    let rest = &rels_xml[start..];
-    let attr = "Target=\"";
-    let value_start = rest.find(attr)? + attr.len();
-    let value_end = rest[value_start..].find('"')?;
-    Some(rest[value_start..value_start + value_end].to_string())
 }
 
 fn extract_reference_ids(paragraph: &str, tag: &str) -> Vec<String> {
@@ -243,44 +246,6 @@ fn note_text_by_id(notes_xml: &str, tag: &str, id: &str) -> Option<String> {
         rest = &rest[end + close.len()..];
     }
     None
-}
-
-fn extract_attr_values_for_tag(input: &str, tag: &str, attr: &str) -> Vec<String> {
-    let mut values = Vec::new();
-    let mut rest = input;
-    let marker = format!("<{tag}");
-    while let Some(start) = rest.find(&marker) {
-        let after = &rest[start..];
-        let Some(end) = after.find('>') else {
-            break;
-        };
-        if let Some(value) = attr_value(&after[..=end], attr) {
-            values.push(value);
-        }
-        rest = &after[end + 1..];
-    }
-    values
-}
-
-fn attr_value(input: &str, name: &str) -> Option<String> {
-    let pattern = format!("{name}=\"");
-    let value_start = input.find(&pattern)? + pattern.len();
-    let value_end = input[value_start..].find('"')?;
-    Some(input[value_start..value_start + value_end].to_string())
-}
-
-fn remove_blocks(input: &str, open: &str, close: &str) -> String {
-    let mut output = String::new();
-    let mut rest = input;
-    while let Some(start) = rest.find(open) {
-        output.push_str(&rest[..start]);
-        let Some(end_rel) = rest[start..].find(close) else {
-            return output;
-        };
-        rest = &rest[start + end_rel + close.len()..];
-    }
-    output.push_str(rest);
-    output
 }
 
 fn is_caption(text: &str) -> bool {

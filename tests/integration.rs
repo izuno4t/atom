@@ -77,6 +77,112 @@ fn markdown_writer_keeps_single_h1() {
 }
 
 #[test]
+fn markdown_writer_makes_duplicate_headings_unique() {
+    let ast = vec![
+        AstNode::Heading {
+            level: 2,
+            text: "5.1 既存システム見直し方針".to_string(),
+        },
+        AstNode::Heading {
+            level: 2,
+            text: "5.1 既存システム見直し方針".to_string(),
+        },
+    ];
+
+    let actual = markdown::write_markdown(&ast, Flavor::Markdownlint);
+
+    assert!(actual.contains("# 5.1 既存システム見直し方針\n"));
+    assert!(actual.contains("## 5.1 既存システム見直し方針 (2)\n"));
+}
+
+#[test]
+fn markdown_writer_merges_line_breaks_inside_sentences() {
+    let ast = vec![
+        AstNode::Heading {
+            level: 1,
+            text: "Document".to_string(),
+        },
+        AstNode::Paragraph("資料内の価格とAWS公式ウェブサイト記載の価格に相".to_string()),
+        AstNode::Paragraph("違があった場合".to_string()),
+        AstNode::Paragraph("Spring web".to_string()),
+        AstNode::Paragraph("application continues.".to_string()),
+        AstNode::Paragraph("次の文です。".to_string()),
+    ];
+
+    let actual = markdown::write_markdown(&ast, Flavor::Markdownlint);
+
+    assert!(actual.contains("価格に相違があった場合 Spring web application continues."));
+    assert!(actual.contains("continues.\n\n次の文です。"));
+}
+
+#[test]
+fn markdownlint_writer_escapes_pdf_text_that_looks_like_markdown_syntax() {
+    let ast = vec![
+        AstNode::Heading {
+            level: 1,
+            text: "Document".to_string(),
+        },
+        AstNode::Paragraph("Copyright © 2021 Example, Inc.".to_string()),
+        AstNode::Paragraph("www.example.com (cm)[sepal_length] <IrisRecord>".to_string()),
+        AstNode::Paragraph("Contact:info@example.com".to_string()),
+        AstNode::Paragraph("[5.1, 3.5, 1.4, 0.2]:Iris-setosa".to_string()),
+        AstNode::Paragraph("#not-a-heading".to_string()),
+        AstNode::Paragraph("5.".to_string()),
+    ];
+
+    let actual = markdown::write_markdown(&ast, Flavor::Markdownlint);
+
+    assert!(actual.starts_with("# Document\n\n"));
+    assert!(actual.contains("<www.example.com>"));
+    assert!(actual.contains("Contact:<info@example.com>"));
+    assert!(actual.contains("(cm)\\[sepal\\_length\\]"));
+    assert!(actual.contains("&lt;IrisRecord&gt;"));
+    assert!(actual.contains("\\[5.1, 3.5, 1.4, 0.2\\]:Iris-setosa"));
+    assert!(actual.contains("\\#not-a-heading"));
+    assert!(actual.contains("5\\."));
+}
+
+#[test]
+fn markdownlint_writer_uses_stable_ordered_list_prefixes() {
+    let ast = vec![
+        AstNode::Heading {
+            level: 3,
+            text: "Document".to_string(),
+        },
+        AstNode::List {
+            ordered: true,
+            items: vec![
+                vec![AstNode::Text("First".to_string())],
+                vec![AstNode::Text("Second".to_string())],
+            ],
+        },
+    ];
+
+    let actual = markdown::write_markdown(&ast, Flavor::Markdownlint);
+
+    assert!(actual.contains("1. First\n1. Second\n"));
+}
+
+#[test]
+fn markdown_writer_normalizes_heading_order_and_trailing_punctuation() {
+    let ast = vec![
+        AstNode::Heading {
+            level: 1,
+            text: "Document".to_string(),
+        },
+        AstNode::Heading {
+            level: 4,
+            text: "Skipped level.".to_string(),
+        },
+    ];
+
+    let actual = markdown::write_markdown(&ast, Flavor::Markdownlint);
+
+    assert!(actual.contains("# Document\n"));
+    assert!(actual.contains("## Skipped level\n"));
+}
+
+#[test]
 fn converts_simple_html_to_markdown() {
     let converter = Converter::new().with_options(ConversionOptions {
         flavor: Flavor::Gfm,
@@ -453,6 +559,187 @@ fn parses_docx_tables_images_and_captions_from_xml() {
     let rendered = markdown::write_markdown(&ast, Flavor::Gfm);
 
     assert_eq!(rendered, expected);
+}
+
+#[test]
+fn parses_docx_tables_in_document_order() {
+    let xml = r#"
+        <w:document><w:body>
+          <w:p><w:r><w:t>Before table</w:t></w:r></w:p>
+          <w:tbl>
+            <w:tr><w:tc><w:p><w:r><w:t>Cell</w:t></w:r></w:p></w:tc></w:tr>
+          </w:tbl>
+          <w:p><w:r><w:t>After table</w:t></w:r></w:p>
+        </w:body></w:document>
+    "#;
+    let mut warnings = Vec::new();
+
+    let ast = docx::parse_document_xml(xml, &mut warnings);
+
+    assert_eq!(
+        ast,
+        vec![
+            AstNode::Paragraph("Before table".to_string()),
+            AstNode::Table {
+                rows: vec![TableRow {
+                    cells: vec![TableCell {
+                        text: "Cell".to_string(),
+                        rowspan: 1,
+                        colspan: 1,
+                        image: None,
+                    }],
+                }],
+            },
+            AstNode::Paragraph("After table".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn parses_docx_after_self_closing_paragraphs() {
+    let xml = r#"
+        <w:document><w:body>
+          <w:p w:rsidR="1"/>
+          <w:p><w:r><w:t>Visible paragraph</w:t></w:r></w:p>
+        </w:body></w:document>
+    "#;
+    let mut warnings = Vec::new();
+
+    let ast = docx::parse_document_xml(xml, &mut warnings);
+
+    assert_eq!(
+        ast,
+        vec![AstNode::Paragraph("Visible paragraph".to_string())]
+    );
+}
+
+#[test]
+fn parses_docx_vml_images_through_relationships() {
+    let xml = r#"
+        <w:document><w:body>
+          <w:p>
+            <w:r><w:pict><v:shape><v:imagedata r:id="rVml"/></v:shape></w:pict></w:r>
+          </w:p>
+          <w:tbl>
+            <w:tr><w:tc><w:p><w:r><w:pict><v:shape><v:imagedata r:id="rCell"/></v:shape></w:pict></w:r></w:p></w:tc></w:tr>
+          </w:tbl>
+        </w:body></w:document>
+    "#;
+    let rels = r#"
+        <Relationships>
+          <Relationship Id="rVml" Target="media/vml.png"/>
+          <Relationship Id="rCell" Target="media/cell.png"/>
+        </Relationships>
+    "#;
+    let mut warnings = Vec::new();
+
+    let ast = docx::parse_document_xml_with_rels(xml, rels, &mut warnings);
+
+    assert_eq!(
+        ast,
+        vec![
+            AstNode::Image {
+                alt: "image".to_string(),
+                path: "media/vml.png".to_string(),
+                title: None,
+            },
+            AstNode::Table {
+                rows: vec![TableRow {
+                    cells: vec![TableCell {
+                        text: "".to_string(),
+                        rowspan: 1,
+                        colspan: 1,
+                        image: Some("media/cell.png".to_string()),
+                    }],
+                }],
+            },
+        ]
+    );
+}
+
+#[test]
+fn extracts_docx_media_files_when_requested() {
+    let package_path = Path::new("target/docx-media-extract-test/input.docx");
+    let media_dir = Path::new("target/docx-media-extract-test/output");
+    let _ = fs::remove_dir_all("target/docx-media-extract-test");
+    fs::create_dir_all(package_path.parent().unwrap()).unwrap();
+
+    let mut bytes = Cursor::new(Vec::new());
+    let mut archive = ZipWriter::new(&mut bytes);
+    let options = SimpleFileOptions::default();
+    archive.start_file("word/document.xml", options).unwrap();
+    archive
+        .write_all(
+            br#"<w:document><w:body><w:p><w:r><w:drawing><a:blip r:embed="rImg"/></w:drawing></w:r></w:p></w:body></w:document>"#,
+        )
+        .unwrap();
+    archive
+        .start_file("word/_rels/document.xml.rels", options)
+        .unwrap();
+    archive
+        .write_all(br#"<Relationships><Relationship Id="rImg" Target="media/image1.png"/></Relationships>"#)
+        .unwrap();
+    archive
+        .start_file("word/media/image1.png", options)
+        .unwrap();
+    archive.write_all(b"png-bytes").unwrap();
+    archive.finish().unwrap();
+    fs::write(package_path, bytes.into_inner()).unwrap();
+
+    let converter = Converter::new().with_options(ConversionOptions {
+        extract_media: Some(media_dir.to_path_buf()),
+        ..ConversionOptions::default()
+    });
+    let result = converter.convert_file(package_path).unwrap();
+
+    assert!(result.markdown.contains("output/image1.png"));
+    assert!(!result.markdown.contains("word/media/image1.png"));
+    assert_eq!(
+        fs::read(media_dir.join("image1.png")).unwrap(),
+        b"png-bytes"
+    );
+}
+
+#[test]
+fn embeds_docx_media_as_base64_when_requested() {
+    let package_path = Path::new("target/docx-media-inline-test/input.docx");
+    let _ = fs::remove_dir_all("target/docx-media-inline-test");
+    fs::create_dir_all(package_path.parent().unwrap()).unwrap();
+
+    let mut bytes = Cursor::new(Vec::new());
+    let mut archive = ZipWriter::new(&mut bytes);
+    let options = SimpleFileOptions::default();
+    archive.start_file("word/document.xml", options).unwrap();
+    archive
+        .write_all(
+            br#"<w:document><w:body><w:p><w:r><w:drawing><a:blip r:embed="rImg"/></w:drawing></w:r></w:p></w:body></w:document>"#,
+        )
+        .unwrap();
+    archive
+        .start_file("word/_rels/document.xml.rels", options)
+        .unwrap();
+    archive
+        .write_all(br#"<Relationships><Relationship Id="rImg" Target="media/image1.png"/></Relationships>"#)
+        .unwrap();
+    archive
+        .start_file("word/media/image1.png", options)
+        .unwrap();
+    archive.write_all(b"png-bytes").unwrap();
+    archive.finish().unwrap();
+    fs::write(package_path, bytes.into_inner()).unwrap();
+
+    let converter = Converter::new().with_options(ConversionOptions {
+        inline_base64_media: true,
+        ..ConversionOptions::default()
+    });
+    let result = converter.convert_file(package_path).unwrap();
+
+    assert!(
+        result
+            .markdown
+            .contains("data:image/png;base64,cG5nLWJ5dGVz")
+    );
+    assert!(!result.markdown.contains("media/image1.png"));
 }
 
 #[test]

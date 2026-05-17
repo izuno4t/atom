@@ -27,6 +27,7 @@ HedgeDoc
 insta
 ipsj
 izuno
+imagedata
 JATS
 json
 justfile
@@ -73,10 +74,13 @@ rasterizer
 rels
 repro
 rowspan
+rsid
+rsplit
 rustdoc
 rustfmt
 Sequoia
 serde
+setosa
 Surya
 Tesseract
 Turndown

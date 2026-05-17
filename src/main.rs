@@ -19,6 +19,7 @@ fn run() -> io::Result<()> {
     let mut input = None;
     let mut output = None;
     let mut options = ConversionOptions::default();
+    let mut extract_media_from_output = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -43,7 +44,7 @@ fn run() -> io::Result<()> {
                     })?;
                 }
             }
-            "--extract-media" => options.extract_media = args.next().map(PathBuf::from),
+            "--extract-media" => extract_media_from_output = true,
             "--inline-base64-media" => options.inline_base64_media = true,
             "--ocr" => {
                 if let Some(value) = args.next() {
@@ -84,6 +85,21 @@ fn run() -> io::Result<()> {
 
     let input =
         input.ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "missing input path"))?;
+    if extract_media_from_output && options.inline_base64_media {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--extract-media and --inline-base64-media are mutually exclusive",
+        ));
+    }
+    if extract_media_from_output {
+        let output_path = output.as_ref().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "--extract-media requires -o/--output",
+            )
+        })?;
+        options.extract_media = Some(media_dir_for_output(output_path));
+    }
     let converter = Converter::new().with_options(options.clone());
     let result = converter.convert_file(&input)?;
 
@@ -127,6 +143,12 @@ fn merge_options(
     }
 }
 
+fn media_dir_for_output(output_path: &std::path::Path) -> PathBuf {
+    let mut media_dir = output_path.to_path_buf();
+    media_dir.set_extension("");
+    media_dir
+}
+
 fn print_help() {
     println!(
         "\
@@ -136,7 +158,7 @@ Options:
   -o, --output <PATH>         Output path, stdout when omitted
   -f, --format <FMT>          md, mdx, html
   --flavor <FLAVOR>           commonmark, gfm, markdownlint, hedgedoc
-  --extract-media <DIR>       Extract media directory
+  --extract-media             Extract media to a directory named after output file
   --inline-base64-media       Embed media as base64 where supported
   --ocr <ENGINE>              auto, ndlocr-lite, ndl-koten, tesseract, surya, none
   --llm <MODEL>               claude-*, gpt-*, ollama:*, none

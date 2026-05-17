@@ -1,5 +1,7 @@
 use crate::AstNode;
 
+static PDF_EXTRACT_PANIC_HOOK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub fn parse_pdf(bytes: &[u8], warnings: &mut Vec<String>) -> Vec<AstNode> {
     parse_pdf_with_backend(bytes, &InternalPdfTextBackend, warnings).ast
 }
@@ -98,8 +100,9 @@ impl PdfTextBackend for PdfExtractBackend {
     }
 
     fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction {
-        match pdf_extract::extract_text_from_mem(bytes) {
-            Ok(text) => {
+        let extracted = extract_text_from_mem_catching_panics(bytes);
+        match extracted {
+            Ok(Ok(text)) => {
                 let objects = text
                     .lines()
                     .map(str::trim)
@@ -117,13 +120,26 @@ impl PdfTextBackend for PdfExtractBackend {
                     extraction_failed: false,
                 }
             }
-            Err(_) => PdfTextExtraction {
+            Ok(Err(_)) | Err(_) => PdfTextExtraction {
                 objects: Vec::new(),
                 extraction_failed: true,
                 ocr_required: true,
             },
         }
     }
+}
+
+fn extract_text_from_mem_catching_panics(
+    bytes: &[u8],
+) -> Result<Result<String, pdf_extract::OutputError>, Box<dyn std::any::Any + Send>> {
+    let _guard = PDF_EXTRACT_PANIC_HOOK_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = std::panic::catch_unwind(|| pdf_extract::extract_text_from_mem(bytes));
+    std::panic::set_hook(previous_hook);
+    result
 }
 
 impl PdfTextBackend for InternalPdfTextBackend {
