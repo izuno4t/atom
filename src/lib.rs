@@ -1480,9 +1480,7 @@ pub mod pdf {
             .count();
         let control_count = block
             .chars()
-            .filter(|character| {
-                character.is_control() && !matches!(character, '\n' | '\r' | '\t')
-            })
+            .filter(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
             .count();
         (replacement_count <= 20 || replacement_count * 20 <= char_count)
             && control_count * 10 <= char_count
@@ -1495,14 +1493,12 @@ pub mod pdf {
             if let Some(font_size) = parse_font_size(line) {
                 current_font_size = Some(font_size);
             }
-            for text in extract_literal_strings(line) {
-                let text = text.trim().to_string();
-                if !text.is_empty() {
-                    objects.push(TextObject {
-                        text,
-                        font_size: current_font_size,
-                    });
-                }
+            let text = extract_pdf_string_tokens(line).trim().to_string();
+            if !text.is_empty() {
+                objects.push(TextObject {
+                    text,
+                    font_size: current_font_size,
+                });
             }
         }
         objects
@@ -1517,38 +1513,95 @@ pub mod pdf {
         tokens.get(tf_index - 1)?.parse::<f32>().ok()
     }
 
-    fn extract_literal_strings(input: &str) -> Vec<String> {
-        let mut strings = Vec::new();
+    fn extract_pdf_string_tokens(input: &str) -> String {
+        let mut output = String::new();
         let mut chars = input.chars().peekable();
         while let Some(character) = chars.next() {
-            if character != '(' {
-                continue;
-            }
-            let mut value = String::new();
-            let mut escaped = false;
-            for next in chars.by_ref() {
-                if escaped {
-                    value.push(match next {
-                        'n' => '\n',
-                        'r' => '\r',
-                        't' => '\t',
-                        'b' => '\u{0008}',
-                        'f' => '\u{000c}',
-                        '(' | ')' | '\\' => next,
-                        other => other,
-                    });
-                    escaped = false;
-                } else if next == '\\' {
-                    escaped = true;
-                } else if next == ')' {
-                    break;
-                } else {
-                    value.push(next);
+            match character {
+                '(' => output.push_str(&read_literal_string(&mut chars)),
+                '<' if chars.peek() != Some(&'<') => {
+                    let hex = read_hex_string(&mut chars);
+                    output.push_str(&decode_hex_string(&hex));
                 }
+                _ => {}
             }
-            strings.push(value);
         }
-        strings
+        output
+    }
+
+    fn read_literal_string<I>(chars: &mut std::iter::Peekable<I>) -> String
+    where
+        I: Iterator<Item = char>,
+    {
+        let mut value = String::new();
+        let mut escaped = false;
+        for next in chars.by_ref() {
+            if escaped {
+                value.push(match next {
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    'b' => '\u{0008}',
+                    'f' => '\u{000c}',
+                    '(' | ')' | '\\' => next,
+                    other => other,
+                });
+                escaped = false;
+            } else if next == '\\' {
+                escaped = true;
+            } else if next == ')' {
+                break;
+            } else {
+                value.push(next);
+            }
+        }
+        value
+    }
+
+    fn read_hex_string<I>(chars: &mut std::iter::Peekable<I>) -> String
+    where
+        I: Iterator<Item = char>,
+    {
+        let mut value = String::new();
+        for next in chars.by_ref() {
+            if next == '>' {
+                break;
+            }
+            if !next.is_whitespace() {
+                value.push(next);
+            }
+        }
+        value
+    }
+
+    fn decode_hex_string(hex: &str) -> String {
+        let mut bytes = Vec::new();
+        let mut chars = hex.chars().filter(|character| {
+            character.is_ascii_digit() || matches!(character, 'a'..='f' | 'A'..='F')
+        });
+        while let Some(high) = chars.next() {
+            let low = chars.next().unwrap_or('0');
+            let pair = format!("{high}{low}");
+            if let Ok(byte) = u8::from_str_radix(&pair, 16) {
+                bytes.push(byte);
+            }
+        }
+        if bytes.starts_with(&[0xFE, 0xFF]) {
+            return decode_utf16be(&bytes[2..]);
+        }
+        if bytes.len() >= 2 && bytes.iter().step_by(2).all(|byte| *byte == 0) {
+            return decode_utf16be(&bytes);
+        }
+        String::from_utf8_lossy(&bytes).to_string()
+    }
+
+    fn decode_utf16be(bytes: &[u8]) -> String {
+        let units = bytes
+            .chunks(2)
+            .filter(|chunk| chunk.len() == 2)
+            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+            .collect::<Vec<_>>();
+        String::from_utf16_lossy(&units)
     }
 
     fn infer_nodes_from_text_objects(
@@ -1599,7 +1652,12 @@ pub mod pdf {
     }
 
     fn is_probably_human_text(text: &str) -> bool {
-        if text.chars().filter(|character| *character == '\u{fffd}').count() >= 2 {
+        if text
+            .chars()
+            .filter(|character| *character == '\u{fffd}')
+            .count()
+            >= 2
+        {
             return false;
         }
         let char_count = text.chars().count();
@@ -1608,9 +1666,7 @@ pub mod pdf {
         }
         let control_count = text
             .chars()
-            .filter(|character| {
-                character.is_control() && !matches!(character, '\n' | '\r' | '\t')
-            })
+            .filter(|character| character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
             .count();
         if control_count * 4 > char_count {
             return false;

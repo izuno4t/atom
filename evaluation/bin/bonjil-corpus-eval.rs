@@ -31,7 +31,10 @@ fn run() -> io::Result<()> {
     }
 
     let summary = summarize(&cases);
-    fs::write(output_root.join("review-index.md"), render_review_index(&summary, &cases))?;
+    fs::write(
+        output_root.join("review-index.md"),
+        render_review_index(&summary, &cases),
+    )?;
     if let Some(parent) = args.out.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -507,12 +510,7 @@ fn render_review_index(summary: &Summary, cases: &[CaseResult]) -> String {
             .iter()
             .filter_map(|result| {
                 result.output_path.as_ref().map(|path| {
-                    format!(
-                        "{}: `{}` ({})",
-                        result.tool,
-                        path.display(),
-                        result.status
-                    )
+                    format!("{}: `{}` ({})", result.tool, path.display(), result.status)
                 })
             })
             .collect::<Vec<_>>()

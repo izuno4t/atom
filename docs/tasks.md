@@ -93,15 +93,16 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-049 | 🚧 | 実装するPDF論理構造とレイアウト読順復元 | TASK-045 |
 | TASK-050 | 🚧 | 実装する図表キャプションとメディア対応付け | TASK-047,TASK-049 |
 | TASK-051 | ✅ | 整備する公開ベンチ準拠の評価ルーブリック | TASK-045,TASK-050 |
-| TASK-052 | 🚧 | 比較する実コーパス評価レポート | TASK-051 |
-| TASK-053 | ⏳ | 作成する優位性判定用goldenレビュー表 | TASK-052 |
-| TASK-054 | ⏳ | 実装するPDFテキスト抽出バックエンド切替 | TASK-053 |
+| TASK-052 | ✅ | 比較する実コーパス評価レポート | TASK-051 |
+| TASK-053 | ✅ | 作成する優位性判定用goldenレビュー表 | TASK-052 |
+| TASK-054 | 🚧 | 実装するPDFテキスト抽出バックエンド切替 | TASK-053 |
 | TASK-055 | ⏳ | 実装するPDF見出しリスト読順復元 | TASK-054 |
 | TASK-056 | ⏳ | 実装するPPTX本文構造とlist復元 | TASK-053 |
 | TASK-057 | ⏳ | 実装するXLSX表範囲と複数sheet出力 | TASK-053 |
 | TASK-058 | ⏳ | 実装するDOCX style mapと注釈復元 | TASK-053 |
 | TASK-059 | ⏳ | 実装するmedia caption候補report | TASK-056,TASK-058 |
-| TASK-060 | ⏳ | 判定する公式コーパス優位性レポート | TASK-055,TASK-057,TASK-059 |
+| TASK-060 | ⏳ | 実装する評価timeoutと対象外判定 | TASK-052 |
+| TASK-061 | ⏳ | 判定する公式コーパス優位性レポート | TASK-055,TASK-057,TASK-059,TASK-060 |
 
 ## タスク詳細（補足が必要な場合のみ）
 
@@ -388,14 +389,15 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
   目視レビュー用indexを出し、`evaluation/reports/` に集計を残す。
 - 注意: `evaluation/inputs`、`evaluation/outputs`、`evaluation/reports` の実データはGit管理外にし、CIでは実コーパス評価を実行しない。
 - 進捗: review-index自動生成を追加した。外部Dockerツールを含む
-  大学公開文書6件の横並び比較を実行した。公式文書と100件規模の比較は未完了。
+  大学公開文書6件の横並び比較を実行した。公式代表セットの一括比較は
+  長時間化したため、timeout制御をTASK-060へ分離する。
 
 ### TASK-053
 
 - 補足: 自動スコアだけでは優位性を判定しない。実コーパスごとに、期待する
   見出し、本文、表、画像、caption、warningを人手レビュー表に固定する。
 - 対象: `japanese-university-tools` と `japanese-official-expanded` の代表例。
-- 成果: `evaluation/reports/` にgoldenレビュー表と判定基準を出す。
+- 成果: `evaluation/methods/golden-review.md` にgoldenレビュー表と判定基準を出す。
 - 注意: 既存ツールの出力を正解にせず、入力文書から期待構造を決める。
 
 ### TASK-054
@@ -405,6 +407,8 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 - 対象: 日本語PDF、スライド由来PDF、冊子PDF、画像PDF。
 - 成果: backend名、抽出失敗、OCR要否をreportに出す。
 - 注意: PDF入力で無意味な短い断片を本文として採用しない。
+- 進捗: 内部PDF抽出層にhex string、UTF-16BE、TJ配列の復元テストと
+  実装を追加した。外部backend切替、座標付き抽出、OCR要否reportは未完了。
 
 ### TASK-055
 
@@ -446,6 +450,14 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 - 注意: 曖昧な候補を単一captionとして断定しない。
 
 ### TASK-060
+
+- 補足: 公式代表セット比較で外部ツールが長時間戻らなかったため、
+  ツール別timeout、形式別対象外、ファイルサイズ制限を評価runnerに入れる。
+- 対象: `bonjil-corpus-eval` のDocker実行境界、report status、error分類。
+- 成果: timeout、unsupported、too_largeをJSONとreview-indexへ出す。
+- 注意: timeoutを成功扱いにせず、優位性判定から除外する。
+
+### TASK-061
 
 - 補足: 改善後に、公式/大学/補助コーパスを同一コマンドで再評価し、
   bonjilが優れる事例と劣る事例を分けて報告する。

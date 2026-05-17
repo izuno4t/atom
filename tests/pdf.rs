@@ -88,7 +88,10 @@ endstream
 
     let ast = pdf::parse_pdf(bytes, &mut warnings);
 
-    assert_eq!(ast, vec![AstNode::Paragraph("Tagged paragraph".to_string())]);
+    assert_eq!(
+        ast,
+        vec![AstNode::Paragraph("Tagged paragraph".to_string())]
+    );
     assert!(
         warnings
             .iter()
@@ -117,5 +120,35 @@ endstream
         warnings
             .iter()
             .any(|warning| warning.contains("binary-like"))
+    );
+}
+
+#[test]
+fn parses_pdf_hex_strings_and_tj_arrays() {
+    let bytes = br#"%PDF-1.7
+stream
+BT
+/F1 22 Tf
+72 720 Td
+<FEFF65E5672C8A9E30BF30A430C830EB> Tj
+/F1 11 Tf
+0 -24 Td
+[(Body ) 120 <0074006500780074> (.)] TJ
+ET
+endstream
+"#;
+    let mut warnings = Vec::new();
+
+    let ast = pdf::parse_pdf(bytes, &mut warnings);
+
+    assert_eq!(
+        ast,
+        vec![
+            AstNode::Heading {
+                level: 1,
+                text: "日本語タイトル".to_string(),
+            },
+            AstNode::Paragraph("Body text.".to_string()),
+        ]
     );
 }
