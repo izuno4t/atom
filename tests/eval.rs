@@ -86,6 +86,32 @@ fn structure_fidelity_penalizes_unexpected_extra_nodes() {
 }
 
 #[test]
+fn structure_fidelity_penalizes_changed_parent_child_relationships() {
+    let expected = vec![AstNode::List {
+        ordered: false,
+        items: vec![vec![AstNode::List {
+            ordered: false,
+            items: vec![vec![AstNode::Text("Nested".to_string())]],
+        }]],
+    }];
+    let actual = vec![AstNode::List {
+        ordered: false,
+        items: vec![vec![
+            AstNode::List {
+                ordered: false,
+                items: vec![vec![]],
+            },
+            AstNode::Text("Nested".to_string()),
+        ]],
+    }];
+
+    let score = evaluate_structure_fidelity(&expected, &actual);
+
+    assert_eq!(score.errors, 2);
+    assert!((score.score - 0.6).abs() < f64::EPSILON);
+}
+
+#[test]
 fn lint_score_detects_common_markdown_layout_errors() {
     let markdown = "# Title\nBody\n- item\n| A | B |\n| --- | --- |\n";
 

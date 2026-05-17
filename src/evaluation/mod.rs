@@ -2,10 +2,13 @@ use crate::{AstNode, MetricScore, OcrCerCase};
 use std::collections::BTreeMap;
 
 pub fn evaluate_structure_fidelity(expected: &[AstNode], actual: &[AstNode]) -> MetricScore {
-    let expected_signature = structure_signature(expected);
-    let actual_signature = structure_signature(actual);
-    let total = expected_signature.len().max(actual_signature.len()).max(1);
-    let distance = normalized_label_edit_distance(&expected_signature, &actual_signature);
+    let expected_tree = EvalTree::document(expected);
+    let actual_tree = EvalTree::document(actual);
+    let total = expected_tree
+        .structural_size()
+        .max(actual_tree.structural_size())
+        .max(1);
+    let distance = ordered_tree_edit_distance(&expected_tree, &actual_tree);
     let score = 1.0 - (distance as f64 / total as f64).min(1.0);
     let warnings = (distance > 0)
         .then(|| format!("structure edit distance {distance} over {total} structural node(s)"))
@@ -176,68 +179,100 @@ pub fn evaluate_translation_structure_preserve(before: &str, after: &str) -> Met
     }
 }
 
-fn structure_signature(nodes: &[AstNode]) -> Vec<String> {
-    let mut signature = Vec::new();
-    for node in nodes {
-        push_node_signature(node, &mut signature);
-    }
-    signature
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct EvalTree {
+    label: String,
+    children: Vec<EvalTree>,
 }
 
-fn push_node_signature(node: &AstNode, signature: &mut Vec<String>) {
-    match node {
-        AstNode::Heading { level, .. } => signature.push(format!("heading:{level}")),
-        AstNode::Paragraph(_) => signature.push("paragraph".to_string()),
-        AstNode::List { ordered, items } => {
-            signature.push(format!(
-                "list:{}",
-                if *ordered { "ordered" } else { "unordered" }
-            ));
-            for item in items {
-                signature.push("list-item".to_string());
-                for node in item {
-                    push_node_signature(node, signature);
-                }
+impl EvalTree {
+    fn document(nodes: &[AstNode]) -> Self {
+        Self {
+            label: "document".to_string(),
+            children: nodes.iter().map(Self::from_ast).collect(),
+        }
+    }
+
+    fn from_ast(node: &AstNode) -> Self {
+        match node {
+            AstNode::Heading { level, .. } => Self::leaf(format!("heading:{level}")),
+            AstNode::Paragraph(_) => Self::leaf("paragraph"),
+            AstNode::List { ordered, items } => Self {
+                label: format!("list:{}", if *ordered { "ordered" } else { "unordered" }),
+                children: items
+                    .iter()
+                    .map(|item| Self {
+                        label: "list-item".to_string(),
+                        children: item.iter().map(Self::from_ast).collect(),
+                    })
+                    .collect(),
+            },
+            AstNode::Text(_) => Self::leaf("text"),
+            AstNode::Table { rows } => Self {
+                label: "table".to_string(),
+                children: rows
+                    .iter()
+                    .map(|row| Self {
+                        label: "table-row".to_string(),
+                        children: row
+                            .cells
+                            .iter()
+                            .map(|cell| {
+                                Self::leaf(format!(
+                                    "table-cell:rowspan={}:colspan={}:image={}",
+                                    cell.rowspan,
+                                    cell.colspan,
+                                    cell.image.is_some()
+                                ))
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            },
+            AstNode::Image { title, .. } => Self::leaf(format!("image:title={}", title.is_some())),
+            AstNode::CodeBlock { language, .. } => {
+                Self::leaf(format!("code:language={}", language.is_some()))
             }
+            AstNode::Footnote { .. } => Self::leaf("footnote"),
+            AstNode::RawHtml(_) => Self::leaf("raw-html"),
         }
-        AstNode::Text(_) => signature.push("text".to_string()),
-        AstNode::Table { rows } => {
-            signature.push("table".to_string());
-            for row in rows {
-                signature.push("table-row".to_string());
-                for cell in &row.cells {
-                    signature.push(format!(
-                        "table-cell:rowspan={}:colspan={}:image={}",
-                        cell.rowspan,
-                        cell.colspan,
-                        cell.image.is_some()
-                    ));
-                }
-            }
+    }
+
+    fn leaf(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            children: Vec::new(),
         }
-        AstNode::Image { title, .. } => {
-            signature.push(format!("image:title={}", title.is_some()));
-        }
-        AstNode::CodeBlock { language, .. } => {
-            signature.push(format!("code:language={}", language.is_some()));
-        }
-        AstNode::Footnote { .. } => signature.push("footnote".to_string()),
-        AstNode::RawHtml(_) => signature.push("raw-html".to_string()),
+    }
+
+    fn size(&self) -> usize {
+        1 + self.children.iter().map(Self::size).sum::<usize>()
+    }
+
+    fn structural_size(&self) -> usize {
+        self.children.iter().map(Self::size).sum()
     }
 }
 
-fn normalized_label_edit_distance(expected: &[String], actual: &[String]) -> usize {
-    let mut costs = (0..=actual.len()).collect::<Vec<_>>();
-    for (i, expected_label) in expected.iter().enumerate() {
-        let mut previous_diagonal = i;
-        costs[0] = i + 1;
-        for (j, actual_label) in actual.iter().enumerate() {
+fn ordered_tree_edit_distance(expected: &EvalTree, actual: &EvalTree) -> usize {
+    let rename_cost = usize::from(expected.label != actual.label);
+    rename_cost + ordered_forest_edit_distance(&expected.children, &actual.children)
+}
+
+fn ordered_forest_edit_distance(expected: &[EvalTree], actual: &[EvalTree]) -> usize {
+    let mut costs: Vec<usize> = (0..=actual.len())
+        .map(|index| actual[..index].iter().map(EvalTree::size).sum())
+        .collect::<Vec<_>>();
+    for expected_node in expected {
+        let mut previous_diagonal = costs[0];
+        costs[0] += expected_node.size();
+        for (j, actual_node) in actual.iter().enumerate() {
             let previous_up = costs[j + 1];
-            costs[j + 1] = if expected_label == actual_label {
-                previous_diagonal
-            } else {
-                1 + previous_diagonal.min(previous_up).min(costs[j])
-            };
+            let delete_cost = previous_up + expected_node.size();
+            let insert_cost = costs[j] + actual_node.size();
+            let replace_cost =
+                previous_diagonal + ordered_tree_edit_distance(expected_node, actual_node);
+            costs[j + 1] = delete_cost.min(insert_cost).min(replace_cost);
             previous_diagonal = previous_up;
         }
     }

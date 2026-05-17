@@ -219,6 +219,22 @@ fn converts_html_image_to_markdown_image() {
 }
 
 #[test]
+fn markdown_writer_wraps_complex_image_destinations() {
+    let ast = vec![AstNode::Image {
+        alt: "image".to_string(),
+        path: "画面設計書_C0300_お知らせ(一覧)/image2.png".to_string(),
+        title: None,
+    }];
+
+    let markdown = markdown::write_markdown(&ast, Flavor::Gfm);
+
+    assert_eq!(
+        markdown,
+        "![image](<画面設計書_C0300_お知らせ(一覧)/image2.png>)\n"
+    );
+}
+
+#[test]
 fn warns_when_image_caption_is_missing() {
     let mut warnings = Vec::new();
     let ast = bonjil::html::parse_html(r#"<img src="media/chart.png" alt="Chart">"#, &mut warnings);

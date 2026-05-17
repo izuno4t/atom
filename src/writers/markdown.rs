@@ -208,7 +208,7 @@ fn write_node(
             output.push_str("![");
             output.push_str(alt);
             output.push_str("](");
-            output.push_str(path);
+            output.push_str(&markdown_link_destination(path));
             if let Some(title) = title {
                 output.push_str(" \"");
                 output.push_str(title);
@@ -234,6 +234,17 @@ fn write_node(
             output.push_str(html.trim());
             output.push('\n');
         }
+    }
+}
+
+fn markdown_link_destination(path: &str) -> String {
+    if path
+        .chars()
+        .any(|ch| ch.is_whitespace() || matches!(ch, '(' | ')' | '<' | '>'))
+    {
+        format!("<{}>", path.replace('<', "%3C").replace('>', "%3E"))
+    } else {
+        path.to_string()
     }
 }
 
