@@ -1,6 +1,13 @@
-.PHONY: default test regression-test bench corpus-eval review verify fmt lint spell clippy
+INSTALL_DIR ?= $(HOME)/bin
+
+.PHONY: default test regression-test bench corpus-eval review verify ci fmt lint spell clippy install
 
 default: test
+
+install:
+	cargo build --release --bin bonjil
+	install -d "$(INSTALL_DIR)"
+	install target/release/bonjil "$(INSTALL_DIR)/bj"
 
 test:
 	cargo test
@@ -24,7 +31,7 @@ fmt:
 	cargo fmt
 
 lint:
-	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/**/*.md CLAUDE.md AGENTS.local.md tests/fixtures/**/*.md benches/README.md
+	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/**/*.md CLAUDE.md AGENTS.md tests/fixtures/**/*.md benches/README.md
 
 spell:
 	cspell
@@ -33,3 +40,5 @@ clippy:
 	cargo clippy --all-targets --all-features -- -D warnings
 
 verify: fmt clippy test regression-test lint spell
+
+ci: verify

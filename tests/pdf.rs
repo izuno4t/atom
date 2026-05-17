@@ -1,3 +1,4 @@
+use bonjil::pdf::{InternalPdfTextBackend, PdfTextBackend, PdfTextExtraction};
 use bonjil::{AstNode, pdf};
 
 #[test]
@@ -150,5 +151,85 @@ endstream
             },
             AstNode::Paragraph("Body text.".to_string()),
         ]
+    );
+}
+
+#[test]
+fn internal_pdf_backend_preserves_basic_text_coordinates() {
+    let bytes = br#"%PDF-1.7
+stream
+BT
+/F1 12 Tf
+72 720 Td
+(Positioned text) Tj
+ET
+endstream
+"#;
+
+    let extraction = InternalPdfTextBackend.extract_text(bytes);
+
+    assert_eq!(extraction.objects.len(), 1);
+    assert_eq!(extraction.objects[0].text, "Positioned text");
+    assert_eq!(extraction.objects[0].x, Some(72.0));
+    assert_eq!(extraction.objects[0].y, Some(720.0));
+}
+
+struct StubPdfBackend;
+
+impl PdfTextBackend for StubPdfBackend {
+    fn name(&self) -> &str {
+        "stub-pdf-backend"
+    }
+
+    fn extract_text(&self, _bytes: &[u8]) -> PdfTextExtraction {
+        PdfTextExtraction {
+            objects: vec![pdf::PdfTextObject {
+                text: "Stub heading".to_string(),
+                font_size: Some(24.0),
+                x: Some(72.0),
+                y: Some(720.0),
+            }],
+            extraction_failed: false,
+            ocr_required: false,
+        }
+    }
+}
+
+#[test]
+fn pdf_parser_accepts_replaceable_text_backend() {
+    let mut warnings = Vec::new();
+
+    let result = pdf::parse_pdf_with_backend(b"%PDF-1.7", &StubPdfBackend, &mut warnings);
+
+    assert_eq!(result.backend, "stub-pdf-backend");
+    assert!(!result.extraction_failed);
+    assert!(!result.ocr_required);
+    assert_eq!(
+        result.ast,
+        vec![AstNode::Paragraph("Stub heading".to_string())]
+    );
+}
+
+#[test]
+fn pdf_parser_does_not_claim_ocr_is_required_when_internal_backend_fails() {
+    let mut warnings = Vec::new();
+
+    let result = pdf::parse_pdf_with_backend(
+        b"%PDF-1.7\n1 0 obj\n<< /Length 3 >>\nstream\n...\nendstream",
+        &InternalPdfTextBackend,
+        &mut warnings,
+    );
+
+    assert!(result.ocr_required);
+    assert_eq!(
+        result.ast,
+        vec![AstNode::Paragraph(
+            "PDF text extraction produced no text with backend internal-text-objects. A full PDF backend or OCR may be required.".to_string(),
+        )]
+    );
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| { warning.contains("A full PDF backend or OCR may be required") })
     );
 }

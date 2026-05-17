@@ -4,8 +4,9 @@ use bonjil::{
     evaluate_table_integrity, evaluate_translation_structure_preserve, markdown, office,
 };
 use std::fs;
+use std::io::{Cursor, Write};
 use std::path::Path;
-use std::process::Command;
+use zip::{ZipWriter, write::SimpleFileOptions};
 
 #[test]
 fn converts_ast_to_commonmark() {
@@ -117,6 +118,67 @@ fn conversion_report_json_lists_used_features() {
     assert!(report.contains("\"ocr:ndlocr-lite\""));
     assert!(report.contains("\"extract_media\""));
     assert!(report.contains("\"media:referenced\""));
+}
+
+#[test]
+fn pdf_conversion_report_records_backend_and_ocr_requirement() {
+    let converter = Converter::new();
+    let bytes = minimal_text_pdf();
+
+    let result = converter.convert_bytes("text-heading.pdf", &bytes).unwrap();
+
+    assert!(
+        result
+            .report
+            .metadata
+            .iter()
+            .any(|(key, value)| { key == "pdf_backend" && value == "pdf-extract" })
+    );
+    assert!(
+        result
+            .report
+            .metadata
+            .iter()
+            .any(|(key, value)| { key == "pdf_ocr_required" && value == "false" })
+    );
+    assert!(
+        result
+            .report
+            .features
+            .iter()
+            .any(|feature| { feature == "pdf_backend:pdf-extract" })
+    );
+}
+
+fn minimal_text_pdf() -> Vec<u8> {
+    let content = "BT\n/F1 24 Tf\n72 720 Td\n(Fixture Title) Tj\n/F1 11 Tf\n0 -24 Td\n(Fixture body text.) Tj\nET\n";
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>".to_string(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+        format!(
+            "<< /Length {} >>\nstream\n{}endstream",
+            content.len(),
+            content
+        ),
+    ];
+    let mut pdf = String::from("%PDF-1.4\n");
+    let mut offsets = vec![0_usize];
+    for (index, object) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.push_str(&format!("{} 0 obj\n{}\nendobj\n", index + 1, object));
+    }
+    let xref_offset = pdf.len();
+    pdf.push_str("xref\n0 6\n0000000000 65535 f \n");
+    for offset in offsets.iter().skip(1) {
+        pdf.push_str(&format!("{offset:010} 00000 n \n"));
+    }
+    pdf.push_str("trailer\n<< /Size 6 /Root 1 0 R >>\n");
+    pdf.push_str("start");
+    pdf.push_str(&format!("xref\n{xref_offset}\n"));
+    pdf.push_str("%%EOF\n");
+    pdf.into_bytes()
 }
 
 #[test]
@@ -487,17 +549,14 @@ fn converts_ooxml_packages_with_parts_and_relationships() {
 }
 
 fn zip_fixture(root: &Path, output: &Path, parts: &[&str]) {
-    let mut command = Command::new("zip");
-    command
-        .arg("-q")
-        .arg(output.file_name().expect("zip output must have file name"));
+    let mut bytes = Cursor::new(Vec::new());
+    let mut archive = ZipWriter::new(&mut bytes);
+    let options = SimpleFileOptions::default();
     for part in parts {
-        command.arg(part);
+        archive.start_file(*part, options).unwrap();
+        let content = fs::read(root.join(part)).unwrap();
+        archive.write_all(&content).unwrap();
     }
-    let output = command.current_dir(root).output().unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    archive.finish().unwrap();
+    fs::write(output, bytes.into_inner()).unwrap();
 }

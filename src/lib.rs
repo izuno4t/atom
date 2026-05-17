@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::Instant;
+use zip::ZipArchive;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AstNode {
@@ -251,13 +251,28 @@ impl Converter {
             media.push(media_dir.to_string_lossy().to_string());
         }
 
+        let mut pdf_report = None;
         let mut ast = match input_format.as_str() {
             "html" => html::parse_html(
                 std::str::from_utf8(bytes).unwrap_or_default(),
                 &mut warnings,
             ),
             "markdown" => vec![AstNode::RawHtml(String::from_utf8_lossy(bytes).to_string())],
-            "pdf" => pdf::parse_pdf(bytes, &mut warnings),
+            "pdf" => {
+                let result = pdf::parse_pdf_with_embedded_backend(bytes, &mut warnings);
+                metadata.push(("pdf_backend".to_string(), result.backend.clone()));
+                metadata.push((
+                    "pdf_extraction_failed".to_string(),
+                    result.extraction_failed.to_string(),
+                ));
+                metadata.push((
+                    "pdf_ocr_required".to_string(),
+                    result.ocr_required.to_string(),
+                ));
+                let ast = result.ast.clone();
+                pdf_report = Some(result);
+                ast
+            }
             "docx" => {
                 warnings.push(
                     "DOCX byte conversion cannot unzip in-memory input; use convert_file for DOCX."
@@ -310,7 +325,16 @@ impl Converter {
         media.sort();
         media.dedup();
         metadata.push(("nodes".to_string(), ast.len().to_string()));
-        let features = report_features(&self.options, &media);
+        let mut features = report_features(&self.options, &media);
+        if let Some(result) = &pdf_report {
+            features.push(format!("pdf_backend:{}", result.backend));
+            if result.ocr_required {
+                features.push("pdf:ocr_required".to_string());
+            }
+            if result.extraction_failed {
+                features.push("pdf:extraction_failed".to_string());
+            }
+        }
         let rendered = render(&ast, &self.options);
         let report = ConversionReport {
             input_path: input_name.to_string(),
@@ -342,7 +366,7 @@ impl Converter {
     ) -> io::Result<ConversionResult> {
         let started = Instant::now();
         let mut warnings = Vec::new();
-        let mut metadata = vec![("parser".to_string(), "unzip+ooxml-package".to_string())];
+        let mut metadata = vec![("parser".to_string(), "zip+ooxml-package".to_string())];
         let ast = match input_format.as_str() {
             "docx" => match unzip_part(path, "word/document.xml") {
                 Ok(xml) => {
@@ -440,17 +464,16 @@ impl Converter {
 }
 
 fn unzip_part(path: &Path, part: &str) -> io::Result<String> {
-    let output = Command::new("unzip")
-        .arg("-p")
-        .arg(path)
-        .arg(part)
-        .output()?;
-    if !output.status.success() {
-        return Err(io::Error::other(
-            String::from_utf8_lossy(&output.stderr).trim().to_string(),
-        ));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    let file = fs::File::open(path)?;
+    let mut archive = ZipArchive::new(file).map_err(zip_error)?;
+    let mut file = archive.by_name(part).map_err(zip_error)?;
+    let mut output = String::new();
+    file.read_to_string(&mut output)?;
+    Ok(output)
+}
+
+fn zip_error(error: zip::result::ZipError) -> io::Error {
+    io::Error::other(error.to_string())
 }
 
 fn read_numbered_parts(path: &Path, prefix: &str, suffix: &str, max: usize) -> Vec<String> {
@@ -1293,10 +1316,10 @@ pub mod office {
                 break;
             };
             let tag = &after[..=end];
-            if let Some(reference) = attr_value(tag, "ref") {
-                if let Some(range) = parse_merge_range(&reference) {
-                    ranges.push(range);
-                }
+            if let Some(reference) = attr_value(tag, "ref")
+                && let Some(range) = parse_merge_range(&reference)
+            {
+                ranges.push(range);
             }
             rest = &after[end + 1..];
         }
@@ -1423,6 +1446,34 @@ pub mod pdf {
     use super::AstNode;
 
     pub fn parse_pdf(bytes: &[u8], warnings: &mut Vec<String>) -> Vec<AstNode> {
+        parse_pdf_with_backend(bytes, &InternalPdfTextBackend, warnings).ast
+    }
+
+    pub fn parse_pdf_with_embedded_backend(
+        bytes: &[u8],
+        warnings: &mut Vec<String>,
+    ) -> PdfParseResult {
+        let primary = parse_pdf_with_backend(bytes, &PdfExtractBackend, warnings);
+        if !primary.extraction_failed && !primary.ocr_required {
+            return primary;
+        }
+
+        let fallback = parse_pdf_with_backend(bytes, &InternalPdfTextBackend, warnings);
+        let fallback_has_text = fallback.ast.iter().any(|node| match node {
+            AstNode::Paragraph(text) | AstNode::Text(text) => {
+                !text.starts_with("PDF text extraction produced no text")
+            }
+            AstNode::Heading { .. } => true,
+            _ => true,
+        });
+        if fallback_has_text { fallback } else { primary }
+    }
+
+    pub fn parse_pdf_with_backend(
+        bytes: &[u8],
+        backend: &dyn PdfTextBackend,
+        warnings: &mut Vec<String>,
+    ) -> PdfParseResult {
         let lossy = String::from_utf8_lossy(bytes);
         warnings.push(
             "PDF parser extracts text objects; coordinates and layout inference are limited."
@@ -1438,24 +1489,109 @@ pub mod pdf {
                 "PDF tag tree was not detected; falling back to content stream order.".to_string(),
             );
         }
-        let text_objects = extract_text_objects(&lossy);
-        if text_objects.is_empty() {
-            warnings.push("PDF text extraction produced no text; OCR may be required.".to_string());
-            vec![AstNode::Paragraph(
-                "PDF content requires OCR or a full PDF backend.".to_string(),
-            )]
+        let extraction = backend.extract_text(bytes);
+        let ocr_required = extraction.ocr_required || extraction.objects.is_empty();
+        let ast = if extraction.objects.is_empty() {
+            let message = format!(
+                "PDF text extraction produced no text with backend {}. A full PDF backend or OCR may be required.",
+                backend.name()
+            );
+            warnings.push(message.clone());
+            vec![AstNode::Paragraph(message)]
         } else {
-            infer_nodes_from_text_objects(text_objects, warnings)
+            infer_nodes_from_text_objects(extraction.objects, warnings)
+        };
+        PdfParseResult {
+            ast,
+            backend: backend.name().to_string(),
+            extraction_failed: extraction.extraction_failed,
+            ocr_required,
         }
     }
 
     #[derive(Clone, Debug)]
-    struct TextObject {
-        text: String,
-        font_size: Option<f32>,
+    pub struct PdfTextObject {
+        pub text: String,
+        pub font_size: Option<f32>,
+        pub x: Option<f32>,
+        pub y: Option<f32>,
     }
 
-    fn extract_text_objects(input: &str) -> Vec<TextObject> {
+    #[derive(Clone, Debug)]
+    pub struct PdfTextExtraction {
+        pub objects: Vec<PdfTextObject>,
+        pub extraction_failed: bool,
+        pub ocr_required: bool,
+    }
+
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct PdfParseResult {
+        pub ast: Vec<AstNode>,
+        pub backend: String,
+        pub extraction_failed: bool,
+        pub ocr_required: bool,
+    }
+
+    pub trait PdfTextBackend {
+        fn name(&self) -> &str;
+        fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction;
+    }
+
+    pub struct InternalPdfTextBackend;
+
+    pub struct PdfExtractBackend;
+
+    impl PdfTextBackend for PdfExtractBackend {
+        fn name(&self) -> &str {
+            "pdf-extract"
+        }
+
+        fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction {
+            match pdf_extract::extract_text_from_mem(bytes) {
+                Ok(text) => {
+                    let objects = text
+                        .lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty())
+                        .map(|line| PdfTextObject {
+                            text: line.to_string(),
+                            font_size: None,
+                            x: None,
+                            y: None,
+                        })
+                        .collect::<Vec<_>>();
+                    PdfTextExtraction {
+                        ocr_required: objects.is_empty(),
+                        objects,
+                        extraction_failed: false,
+                    }
+                }
+                Err(_) => PdfTextExtraction {
+                    objects: Vec::new(),
+                    extraction_failed: true,
+                    ocr_required: true,
+                },
+            }
+        }
+    }
+
+    impl PdfTextBackend for InternalPdfTextBackend {
+        fn name(&self) -> &str {
+            "internal-text-objects"
+        }
+
+        fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction {
+            let lossy = String::from_utf8_lossy(bytes);
+            let objects = extract_text_objects(&lossy);
+            PdfTextExtraction {
+                ocr_required: objects.is_empty(),
+                objects,
+                extraction_failed: false,
+            }
+        }
+    }
+
+    fn extract_text_objects(input: &str) -> Vec<PdfTextObject> {
         let mut objects = Vec::new();
         let mut rest = input;
         while let Some(start) = rest.find("BT") {
@@ -1486,18 +1622,26 @@ pub mod pdf {
             && control_count * 10 <= char_count
     }
 
-    fn extract_block_text_objects(block: &str) -> Vec<TextObject> {
+    fn extract_block_text_objects(block: &str) -> Vec<PdfTextObject> {
         let mut objects = Vec::new();
         let mut current_font_size = None;
+        let mut current_x = None;
+        let mut current_y = None;
         for line in block.lines() {
             if let Some(font_size) = parse_font_size(line) {
                 current_font_size = Some(font_size);
             }
+            if let Some((x, y)) = parse_text_position(line) {
+                current_x = Some(x);
+                current_y = Some(y);
+            }
             let text = extract_pdf_string_tokens(line).trim().to_string();
             if !text.is_empty() {
-                objects.push(TextObject {
+                objects.push(PdfTextObject {
                     text,
                     font_size: current_font_size,
+                    x: current_x,
+                    y: current_y,
                 });
             }
         }
@@ -1511,6 +1655,19 @@ pub mod pdf {
             return None;
         }
         tokens.get(tf_index - 1)?.parse::<f32>().ok()
+    }
+
+    fn parse_text_position(line: &str) -> Option<(f32, f32)> {
+        let tokens = line.split_whitespace().collect::<Vec<_>>();
+        let td_index = tokens
+            .iter()
+            .position(|token| matches!(*token, "Td" | "TD"))?;
+        if td_index < 2 {
+            return None;
+        }
+        let x = tokens.get(td_index - 2)?.parse::<f32>().ok()?;
+        let y = tokens.get(td_index - 1)?.parse::<f32>().ok()?;
+        Some((x, y))
     }
 
     fn extract_pdf_string_tokens(input: &str) -> String {
@@ -1605,7 +1762,7 @@ pub mod pdf {
     }
 
     fn infer_nodes_from_text_objects(
-        objects: Vec<TextObject>,
+        objects: Vec<PdfTextObject>,
         warnings: &mut Vec<String>,
     ) -> Vec<AstNode> {
         let original_count = objects.len();

@@ -95,14 +95,15 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-051 | ✅ | 整備する公開ベンチ準拠の評価ルーブリック | TASK-045,TASK-050 |
 | TASK-052 | ✅ | 比較する実コーパス評価レポート | TASK-051 |
 | TASK-053 | ✅ | 作成する優位性判定用goldenレビュー表 | TASK-052 |
-| TASK-054 | 🚧 | 実装するPDFテキスト抽出バックエンド切替 | TASK-053 |
-| TASK-055 | ⏳ | 実装するPDF見出しリスト読順復元 | TASK-054 |
+| TASK-054 | ✅ | 実装するPDFテキスト抽出バックエンド切替 | TASK-053 |
+| TASK-055 | 🚧 | 実装するPDF見出しリスト読順復元 | TASK-054 |
 | TASK-056 | ⏳ | 実装するPPTX本文構造とlist復元 | TASK-053 |
 | TASK-057 | ⏳ | 実装するXLSX表範囲と複数sheet出力 | TASK-053 |
 | TASK-058 | ⏳ | 実装するDOCX style mapと注釈復元 | TASK-053 |
 | TASK-059 | ⏳ | 実装するmedia caption候補report | TASK-056,TASK-058 |
 | TASK-060 | ⏳ | 実装する評価timeoutと対象外判定 | TASK-052 |
 | TASK-061 | ⏳ | 判定する公式コーパス優位性レポート | TASK-055,TASK-057,TASK-059,TASK-060 |
+| TASK-062 | ✅ | 整備するbjローカルインストールMakeターゲット | TASK-042 |
 
 ## タスク詳細（補足が必要な場合のみ）
 
@@ -408,7 +409,10 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 - 成果: backend名、抽出失敗、OCR要否をreportに出す。
 - 注意: PDF入力で無意味な短い断片を本文として採用しない。
 - 進捗: 内部PDF抽出層にhex string、UTF-16BE、TJ配列の復元テストと
-  実装を追加した。外部backend切替、座標付き抽出、OCR要否reportは未完了。
+  実装を追加した。PDFテキスト抽出backend境界、基本座標保持、
+  backend名、抽出失敗、OCR要否のreport出力を追加した。通常PDFの
+  テキスト抽出に組み込みRust backend `pdf-extract` を追加し、
+  失敗時のみ内部抽出層へフォールバックする。
 
 ### TASK-055
 
@@ -464,6 +468,17 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 - 対象: PDF、PPTX、XLSX、DOCXの公開コーパス。
 - 成果: `evaluation/reports/` に人手レビュー込みの優位性レポートを出す。
 - 注意: `superiority_claim` は根拠が揃うまでprovenにしない。
+
+### TASK-062
+
+- 補足: release版の`bonjil`実行ファイルを作成し、`bj`コマンドとして
+  ローカルの実行パスへ
+  配置できるMakeターゲットを用意する。
+- 対象: `Makefile` の開発者向けターゲット。
+- 成果: `make install` で `target/release/bonjil` を作成し、既定では
+  `~/bin/bj` へインストールできる。
+- 注意: 配置先は `INSTALL_DIR` で上書き可能にし、既存の変換処理には影響
+  させない。
 
 ## Backlog一覧
 
