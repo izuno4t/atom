@@ -17,6 +17,7 @@ pub enum OutputFormat {
 pub enum OcrEngine {
     None,
     Auto,
+    OcrRs,
     NdlOcrLite,
     NdlKoten,
     Tesseract,

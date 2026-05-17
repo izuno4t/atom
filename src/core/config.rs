@@ -55,6 +55,7 @@ pub fn parse_ocr(value: &str) -> OcrEngine {
     match value {
         "none" => OcrEngine::None,
         "auto" => OcrEngine::Auto,
+        "ocr-rs" => OcrEngine::OcrRs,
         "ndlocr-lite" => OcrEngine::NdlOcrLite,
         "ndl-koten" => OcrEngine::NdlKoten,
         "tesseract" => OcrEngine::Tesseract,

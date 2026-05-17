@@ -59,6 +59,44 @@ pub fn parse_pdf_with_ordered_backends(
     best_result.unwrap_or_else(|| parse_pdf_with_backend(bytes, &InternalPdfTextBackend, warnings))
 }
 
+pub fn extract_lopdf_page_texts(bytes: &[u8]) -> Option<Vec<Vec<PdfTextObject>>> {
+    let document = lopdf::Document::load_mem(bytes).ok()?;
+    if document.is_encrypted() {
+        return None;
+    }
+    let pages = document.get_pages().keys().copied().collect::<Vec<_>>();
+    Some(
+        pages
+            .into_iter()
+            .map(|page| {
+                document
+                    .extract_text(&[page])
+                    .ok()
+                    .map(|text| {
+                        text.lines()
+                            .map(str::trim)
+                            .filter(|line| !line.is_empty())
+                            .map(|line| PdfTextObject {
+                                text: line.to_string(),
+                                font_size: None,
+                                x: None,
+                                y: None,
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            })
+            .collect(),
+    )
+}
+
+pub fn infer_nodes_from_pdf_text_objects(
+    objects: Vec<PdfTextObject>,
+    warnings: &mut Vec<String>,
+) -> Vec<AstNode> {
+    infer_nodes_from_text_objects(objects, warnings)
+}
+
 pub fn parse_pdf_with_backend(
     bytes: &[u8],
     backend: &dyn PdfTextBackend,

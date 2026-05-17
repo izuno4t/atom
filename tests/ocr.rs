@@ -27,3 +27,18 @@ fn ndlocr_lite_subprocess_command_is_exposed() {
     );
     assert!(ocr::command_for_engine(&OcrEngine::None).is_none());
 }
+
+#[test]
+fn ocr_rs_backend_requires_model_environment() {
+    if std::env::var_os("BONJIL_OCR_RS_DET_MODEL").is_some()
+        && std::env::var_os("BONJIL_OCR_RS_REC_MODEL").is_some()
+        && std::env::var_os("BONJIL_OCR_RS_CHARSET").is_some()
+    {
+        return;
+    }
+
+    let backend = ocr::backend_for_engine(&OcrEngine::OcrRs).unwrap_err();
+
+    assert!(backend.to_string().contains("BONJIL_OCR_RS_DET_MODEL"));
+    assert!(ocr::command_for_engine(&OcrEngine::OcrRs).is_none());
+}

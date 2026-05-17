@@ -21,6 +21,7 @@ pub(crate) fn ocr_name(engine: &OcrEngine) -> &str {
     match engine {
         OcrEngine::None => "none",
         OcrEngine::Auto => "auto",
+        OcrEngine::OcrRs => "ocr-rs",
         OcrEngine::NdlOcrLite => "ndlocr-lite",
         OcrEngine::NdlKoten => "ndl-koten",
         OcrEngine::Tesseract => "tesseract",

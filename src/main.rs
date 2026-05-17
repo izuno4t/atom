@@ -160,7 +160,7 @@ Options:
   --flavor <FLAVOR>           commonmark, gfm, markdownlint, hedgedoc
   --extract-media             Extract media to a directory named after output file
   --inline-base64-media       Embed media as base64 where supported
-  --ocr <ENGINE>              auto, ndlocr-lite, ndl-koten, tesseract, surya, none
+  --ocr <ENGINE>              auto, ocr-rs, ndlocr-lite, ndl-koten, tesseract, surya, none
   --llm <MODEL>               claude-*, gpt-*, ollama:*, none
   --restructure               Apply LLM restructure filter
   --translate <LANG>          Translate with selected LLM

@@ -56,7 +56,14 @@ impl Converter {
             ),
             "markdown" => vec![AstNode::RawHtml(String::from_utf8_lossy(bytes).to_string())],
             "pdf" => {
-                let result = pdf::parse_pdf_with_embedded_backend(bytes, &mut warnings);
+                let mut result = pdf::parse_pdf_with_embedded_backend(bytes, &mut warnings);
+                if !pdf::is_encrypted_pdf(bytes) {
+                    if let Some(ocr_result) =
+                        self.try_pdf_ocr_for_pages_without_text(bytes, &result, &mut warnings)?
+                    {
+                        result = ocr_result;
+                    }
+                }
                 metadata.push(("pdf_backend".to_string(), result.backend.clone()));
                 metadata.push((
                     "pdf_extraction_failed".to_string(),
@@ -298,6 +305,68 @@ impl Converter {
                 features,
             },
         })
+    }
+
+    fn try_pdf_ocr_for_pages_without_text(
+        &self,
+        bytes: &[u8],
+        current_result: &pdf::PdfParseResult,
+        warnings: &mut Vec<String>,
+    ) -> io::Result<Option<pdf::PdfParseResult>> {
+        if self.options.ocr == OcrEngine::None {
+            return Ok(None);
+        }
+        let Some(page_texts) = pdf::extract_lopdf_page_texts(bytes) else {
+            return Ok(None);
+        };
+        let missing_pages = page_texts
+            .iter()
+            .enumerate()
+            .filter_map(|(index, objects)| objects.is_empty().then_some(index))
+            .collect::<Vec<_>>();
+        if missing_pages.is_empty() {
+            return Ok(None);
+        }
+        let Some(backend) = ocr::backend_for_engine(&self.options.ocr)? else {
+            return Ok(None);
+        };
+        warnings.push(format!(
+            "PDF OCR fallback selected for {} page(s) without extractable text.",
+            missing_pages.len()
+        ));
+        let ocr_pages = ocr::recognize_pdf_pages(bytes, &missing_pages, backend.as_ref())?;
+        let mut ocr_by_page = std::collections::BTreeMap::new();
+        for (page_index, text) in ocr_pages {
+            ocr_by_page.insert(page_index, text);
+        }
+
+        let mut objects = Vec::new();
+        for (page_index, page_objects) in page_texts.into_iter().enumerate() {
+            if page_objects.is_empty() {
+                if let Some(text) = ocr_by_page.get(&page_index) {
+                    objects.extend(text.lines().map(str::trim).filter(|line| !line.is_empty()).map(
+                        |line| pdf::PdfTextObject {
+                            text: line.to_string(),
+                            font_size: None,
+                            x: None,
+                            y: None,
+                        },
+                    ));
+                }
+            } else {
+                objects.extend(page_objects);
+            }
+        }
+        if objects.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(pdf::PdfParseResult {
+            ast: pdf::infer_nodes_from_pdf_text_objects(objects, warnings),
+            backend: format!("{}+{}", current_result.backend, ocr_name(&self.options.ocr)),
+            extraction_failed: current_result.extraction_failed,
+            ocr_required: true,
+        }))
     }
 }
 
