@@ -182,10 +182,18 @@ fn config_path_from_args(args: &[String]) -> (PathBuf, bool) {
             return iter
                 .next()
                 .map(|value| (PathBuf::from(value), true))
-                .unwrap_or_else(|| (PathBuf::from("atom.config.toml"), true));
+                .unwrap_or_else(|| {
+                    (
+                        PathBuf::from("evaluation/atom-evaluation.config.toml"),
+                        true,
+                    )
+                });
         }
     }
-    (PathBuf::from("atom.config.toml"), false)
+    (
+        PathBuf::from("evaluation/atom-evaluation.config.toml"),
+        false,
+    )
 }
 
 fn load_eval_config(path: &Path) -> io::Result<EvalConfig> {
@@ -238,11 +246,19 @@ struct CaseResult {
     judgment: String,
 }
 
+type StatusCounts = BTreeMap<String, usize>;
+type ToolStatusCounts = BTreeMap<String, StatusCounts>;
+type ExtensionToolStatusCounts = BTreeMap<String, ToolStatusCounts>;
+type FailureReasonCounts = BTreeMap<String, StatusCounts>;
+
 struct Summary {
     total_files: usize,
     by_extension: BTreeMap<String, usize>,
     tool_success: BTreeMap<String, usize>,
     tool_average_score: BTreeMap<String, f64>,
+    status_by_extension: ExtensionToolStatusCounts,
+    status_by_tool: ToolStatusCounts,
+    failure_reasons: FailureReasonCounts,
     atom_wins: usize,
     superiority_claim: String,
 }
@@ -580,6 +596,9 @@ fn summarize(cases: &[CaseResult]) -> Summary {
     let mut by_extension = BTreeMap::new();
     let mut tool_success = BTreeMap::new();
     let mut tool_scores = BTreeMap::<String, (f64, usize)>::new();
+    let mut status_by_extension = ExtensionToolStatusCounts::new();
+    let mut status_by_tool = ToolStatusCounts::new();
+    let mut failure_reasons = FailureReasonCounts::new();
     let mut atom_wins = 0;
     for case in cases {
         *by_extension.entry(case.extension.clone()).or_insert(0) += 1;
@@ -587,11 +606,34 @@ fn summarize(cases: &[CaseResult]) -> Summary {
             atom_wins += 1;
         }
         for result in &case.results {
+            *status_by_extension
+                .entry(case.extension.clone())
+                .or_default()
+                .entry(result.tool.clone())
+                .or_default()
+                .entry(result.status.clone())
+                .or_default() += 1;
+            *status_by_tool
+                .entry(result.tool.clone())
+                .or_default()
+                .entry(result.status.clone())
+                .or_default() += 1;
             if result.status == "ok" {
                 *tool_success.entry(result.tool.clone()).or_insert(0) += 1;
                 let entry = tool_scores.entry(result.tool.clone()).or_default();
                 entry.0 += result.metrics.score;
                 entry.1 += 1;
+            } else {
+                let reason = result
+                    .error
+                    .as_deref()
+                    .filter(|error| !error.is_empty())
+                    .unwrap_or(&result.status);
+                *failure_reasons
+                    .entry(result.tool.clone())
+                    .or_default()
+                    .entry(reason.to_string())
+                    .or_default() += 1;
             }
         }
     }
@@ -604,6 +646,9 @@ fn summarize(cases: &[CaseResult]) -> Summary {
         by_extension,
         tool_success,
         tool_average_score,
+        status_by_extension,
+        status_by_tool,
+        failure_reasons,
         atom_wins,
         superiority_claim: "not_proven_without_human_review_or_ground_truth".to_string(),
     }
@@ -667,6 +712,9 @@ fn render_summary(summary: &Summary) -> String {
             "\"by_extension\":{},",
             "\"tool_success\":{},",
             "\"tool_average_score\":{},",
+            "\"status_by_extension\":{},",
+            "\"status_by_tool\":{},",
+            "\"failure_reasons\":{},",
             "\"atom_wins\":{},",
             "\"superiority_claim\":\"{}\"",
             "}}"
@@ -675,8 +723,11 @@ fn render_summary(summary: &Summary) -> String {
         render_usize_map(&summary.by_extension),
         render_usize_map(&summary.tool_success),
         render_f64_map(&summary.tool_average_score),
+        render_extension_tool_status_counts(&summary.status_by_extension),
+        render_tool_status_counts(&summary.status_by_tool),
+        render_tool_status_counts(&summary.failure_reasons),
         summary.atom_wins,
-        summary.superiority_claim
+        escape_json(&summary.superiority_claim)
     )
 }
 
@@ -759,6 +810,36 @@ fn render_usize_map(values: &BTreeMap<String, usize>) -> String {
         values
             .iter()
             .map(|(key, value)| format!("\"{}\":{}", escape_json(key), value))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn render_tool_status_counts(values: &ToolStatusCounts) -> String {
+    format!(
+        "{{{}}}",
+        values
+            .iter()
+            .map(|(tool, statuses)| {
+                format!("\"{}\":{}", escape_json(tool), render_usize_map(statuses))
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn render_extension_tool_status_counts(values: &ExtensionToolStatusCounts) -> String {
+    format!(
+        "{{{}}}",
+        values
+            .iter()
+            .map(|(extension, tools)| {
+                format!(
+                    "\"{}\":{}",
+                    escape_json(extension),
+                    render_tool_status_counts(tools)
+                )
+            })
             .collect::<Vec<_>>()
             .join(",")
     )

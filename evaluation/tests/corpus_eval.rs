@@ -41,7 +41,7 @@ fn corpus_eval_reads_local_evaluation_paths_from_config() {
     let root = "../target/corpus-eval-config-test/input";
     let output_root = "../target/corpus-eval-config-test/outputs";
     let report_path = "../target/corpus-eval-config-test/report.json";
-    let config_path = "../target/corpus-eval-config-test/atom.config.toml";
+    let config_path = "../target/corpus-eval-config-test/atom-evaluation.config.toml";
     fs::create_dir_all(root).unwrap();
     fs::write(format!("{root}/sample.html"), "<h1>Title</h1><p>Body</p>").unwrap();
     fs::write(
@@ -209,4 +209,11 @@ fn corpus_eval_can_mark_external_tool_timeout() {
     let report = fs::read_to_string("../target/corpus-eval-timeout-test/report.json").unwrap();
     assert!(report.contains("\"tool\":\"pandoc\""));
     assert!(report.contains("\"status\":\"timeout\""));
+    assert!(report.contains("\"status_by_extension\""));
+    assert!(report.contains("\"html\":{\"atom\":{\"ok\":1},\"pandoc\":{\"timeout\":1}}"));
+    assert!(report.contains("\"status_by_tool\""));
+    assert!(report.contains("\"atom\":{\"ok\":1}"));
+    assert!(report.contains("\"pandoc\":{\"timeout\":1}"));
+    assert!(report.contains("\"failure_reasons\""));
+    assert!(report.contains("\"external tool timed out before execution\":1"));
 }

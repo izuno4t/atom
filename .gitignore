@@ -25,6 +25,9 @@ evaluation/target/
 # Local project configuration. Keep atom.config.toml.example in Git.
 atom.config.toml
 
+# Local evaluation configuration. Keep evaluation/*.example in Git.
+evaluation/atom-evaluation.config.toml
+
 # Local pre-evaluation conversion inputs. Keep README/.gitkeep only.
 tests/inputs/*
 !tests/inputs/.gitkeep

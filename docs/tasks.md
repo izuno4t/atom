@@ -104,8 +104,8 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-060 | ✅ | 実装する評価timeoutと対象外判定 | TASK-052 |
 | TASK-061 | ✅ | 判定する公式コーパス優位性レポート | TASK-055,TASK-057,TASK-059,TASK-060 |
 | TASK-062 | ✅ | 整備するatomローカルインストールMakeターゲット | TASK-042 |
-| TASK-063 | ⏳ | 整備するLLMなし大量評価コマンド | TASK-061,TASK-062 |
-| TASK-064 | ⏳ | 集計する形式別成功率と失敗理由 | TASK-063 |
+| TASK-063 | ✅ | 整備するLLMなし大量評価コマンド | TASK-061,TASK-062 |
+| TASK-064 | ✅ | 集計する形式別成功率と失敗理由 | TASK-063 |
 | TASK-065 | ⏳ | 集計するMarkdown構造量スコア | TASK-064 |
 | TASK-066 | ⏳ | 抽出する人手レビュー候補 | TASK-065 |
 | TASK-067 | ⏳ | 作成するLLMなし評価サマリ | TASK-066 |
@@ -546,6 +546,10 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 - 成果: 形式横断と形式限定の標準コマンドを `evaluation/methods/evaluation.md`
   に記録し、LLMなし評価を再現可能にする。
 - 注意: 実コーパスと出力はGit管理外にし、CIでは大量文書評価を実行しない。
+- 進捗: 本体設定と分離した `evaluation/atom-evaluation.config.toml` を入力、
+  出力、report pathのローカル設定として使い、LLMなし標準条件、HTML重点、
+  PDF重点、Office重点の実行コマンドを `evaluation/methods/evaluation.md` に
+  記録した。
 
 ### TASK-064
 
@@ -554,6 +558,8 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 - 成果: `evaluation/reports/auto-summary.json` に形式別、tool別、status別の
   集計を出す。
 - 注意: timeoutや対象外を成功扱いにせず、優位性判定から除外する。
+- 進捗: `atom-corpus-eval` のsummaryへ、形式別、tool別、status別の集計と
+  失敗理由の集計を追加した。`make ci` で確認済み。
 
 ### TASK-065
 

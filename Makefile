@@ -25,13 +25,13 @@ bench:
 	cargo run -p atom-evaluation --bin atom-bench -- tests/fixtures/unit/html/basic.html 10
 
 corpus-eval:
-	cargo run -p atom-evaluation --bin atom-corpus-eval -- --config atom.config.toml
+	cargo run -p atom-evaluation --bin atom-corpus-eval -- --config evaluation/atom-evaluation.config.toml
 
 fmt:
 	cargo fmt
 
 lint:
-	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/methods/*.md evaluation/tool-runners/*.md CLAUDE.md AGENTS.md tests/fixtures/**/*.md benches/README.md
+	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/methods/*.md evaluation/tool-runners/*.md CLAUDE.md AGENTS.md tests/fixtures/**/README.md tests/fixtures/**/MANIFEST.md benches/README.md
 
 spell:
 	cspell

@@ -71,8 +71,10 @@ make bench
 make corpus-eval
 ```
 
-評価対象ドキュメントの実パスは、Git管理外の `atom.config.toml` に保存できる。
-`atom.config.toml.example` をコピーして、ローカル環境のパスへ書き換える。
+評価対象ドキュメントの実パスは、Git管理外の
+`evaluation/atom-evaluation.config.toml` に保存できる。
+`evaluation/atom-evaluation.config.toml.example` をコピーして、ローカル環境の
+パスへ書き換える。
 
 ```toml
 evaluation_root = "evaluation/inputs"
@@ -93,9 +95,16 @@ cargo run -p atom-evaluation --bin atom-corpus-eval -- \
 設定ファイルの評価パスを使う場合は、次のように実行する。
 
 ```bash
-cargo run -p atom-evaluation --bin atom-corpus-eval -- --config atom.config.toml
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
+  --config evaluation/atom-evaluation.config.toml \
+  --limit 200 \
+  --per-ext 40 \
+  --tools pandoc,markitdown,docling,pymupdf4llm,mammoth-js \
+  --timeout-ms 120000 \
+  --max-bytes 52428800
 ```
 
+形式別の重点評価コマンドは [methods/evaluation.md](methods/evaluation.md) を参照する。
 PDFだけを100件評価する場合は次のように実行する。
 
 ```bash

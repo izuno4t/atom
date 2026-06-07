@@ -2,9 +2,3 @@ flavor = "gfm"
 format = "markdown"
 strict = false
 consent_external_send = false
-
-# Local evaluation paths. Copy this file to atom.config.toml and keep actual
-# document paths out of Git.
-evaluation_root = "evaluation/inputs"
-evaluation_output_root = "evaluation/outputs"
-evaluation_report_path = "evaluation/reports/report.json"

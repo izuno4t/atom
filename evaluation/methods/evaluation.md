@@ -16,8 +16,10 @@
 
 ## 実行方法
 
-評価対象ドキュメントの実パスは、Git管理外の `atom.config.toml` に保存する。
-`atom.config.toml.example` をコピーして、ローカル環境のパスへ書き換える。
+評価対象ドキュメントの実パスは、Git管理外の
+`evaluation/atom-evaluation.config.toml` に保存する。
+`evaluation/atom-evaluation.config.toml.example` をコピーして、ローカル環境の
+パスへ書き換える。
 
 ```toml
 evaluation_root = "evaluation/inputs"
@@ -28,30 +30,62 @@ evaluation_report_path = "evaluation/reports/report.json"
 設定ファイルの評価パスを使う場合は、次のように実行する。
 
 ```bash
-cargo run -p atom-evaluation --bin atom-corpus-eval -- --config atom.config.toml
+cargo run -p atom-evaluation --bin atom-corpus-eval -- --config evaluation/atom-evaluation.config.toml
+```
+
+LLMを使わない大量評価の標準条件は次の通りとする。
+
+```bash
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
+  --config evaluation/atom-evaluation.config.toml \
+  --limit 200 \
+  --per-ext 40 \
+  --tools pandoc,markitdown,docling,pymupdf4llm,mammoth-js \
+  --timeout-ms 120000 \
+  --max-bytes 52428800
+```
+
+この標準条件では、`evaluation/atom-evaluation.config.toml` の `evaluation_root`、
+`evaluation_output_root`、`evaluation_report_path` を使う。`--limit`、
+`--per-ext`、`--tools`、`--timeout-ms`、`--max-bytes` は実行条件として
+コマンド側で明示し、実行ごとの差分を追跡しやすくする。
+
+形式ごとの重点評価は、`--ext` と `evaluation_report_path` の上書きで分ける。
+
+```bash
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
+  --config evaluation/atom-evaluation.config.toml \
+  --out evaluation/reports/html-100-report.json \
+  --limit 100 \
+  --per-ext 100 \
+  --ext html \
+  --tools pandoc,markitdown \
+  --timeout-ms 120000 \
+  --max-bytes 52428800
 ```
 
 ```bash
 cargo run -p atom-evaluation --bin atom-corpus-eval -- \
-  --root evaluation/inputs \
-  --out evaluation/reports/report.json \
-  --output-root evaluation/outputs \
-  --limit 30 \
-  --per-ext 5 \
-  --tools pandoc,markitdown
-```
-
-PDFだけを100件評価する場合は、次のように実行する。
-
-```bash
-cargo run -p atom-evaluation --bin atom-corpus-eval -- \
-  --root evaluation/inputs \
+  --config evaluation/atom-evaluation.config.toml \
   --out evaluation/reports/pdf-100-report.json \
-  --output-root evaluation/outputs \
   --limit 100 \
   --per-ext 100 \
   --ext pdf \
-  --tools docling,pymupdf4llm
+  --tools docling,pymupdf4llm \
+  --timeout-ms 120000 \
+  --max-bytes 52428800
+```
+
+```bash
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
+  --config evaluation/atom-evaluation.config.toml \
+  --out evaluation/reports/office-150-report.json \
+  --limit 150 \
+  --per-ext 50 \
+  --ext docx,pptx,xlsx \
+  --tools pandoc,markitdown,docling,mammoth-js \
+  --timeout-ms 120000 \
+  --max-bytes 52428800
 ```
 
 出力Markdownは `evaluation/outputs/<tool>/` に保存される。

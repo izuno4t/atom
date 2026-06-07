@@ -96,9 +96,6 @@ flavor = "gfm"
 format = "markdown"
 strict = false
 consent_external_send = false
-evaluation_root = "evaluation/inputs"
-evaluation_output_root = "evaluation/outputs"
-evaluation_report_path = "evaluation/reports/report.json"
 ```
 
 ## 対応状況
