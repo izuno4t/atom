@@ -74,6 +74,7 @@ make corpus-eval
 make corpus-eval-full
 make llm-eval LLM_EVAL_DRY_RUN=1
 make pdf-probe PDF_PROBE_INPUT=/path/to/input.pdf
+make markitdown-venv
 ```
 
 `make corpus-eval` は初回確認向けに、既定では `atom` 単独、20件、
@@ -81,6 +82,16 @@ make pdf-probe PDF_PROBE_INPUT=/path/to/input.pdf
 
 ```bash
 make corpus-eval EVAL_LIMIT=100 EVAL_PER_EXT=20 EVAL_TOOLS=atom
+```
+
+MarkItDownのPDF抽出方式をローカルで検証する場合は、Git管理外の
+`evaluation/.venv` にPython環境を作る。`uv` のキャッシュも既定では
+`evaluation/.uv-cache` に置く。Dockerを使わずに比較したい場合は、tool名に
+`markitdown-local` を指定する。
+
+```bash
+make markitdown-venv
+make corpus-eval EVAL_TOOLS=atom,markitdown-local EVAL_PER_EXT=20 EVAL_LIMIT=20
 ```
 
 `make corpus-eval-full` は比較ツール込みの標準評価を実行する。Docker

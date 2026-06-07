@@ -22,7 +22,9 @@ lto = true
 strip = true
 
 [dependencies]
+encoding_rs = "0.8"
 hayro = "0.7.0"
+hayro-cmap = { version = "0.1.0", features = ["embed-cmaps"] }
 image = "0.25"
 lopdf = { version = "0.38.0", default-features = false }
 ocr-rs = "2.2.2"

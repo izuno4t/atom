@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::AstNode;
 
 static PDF_EXTRACT_PANIC_HOOK_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -42,10 +44,11 @@ pub fn diagnose_no_extractable_text(bytes: &[u8]) -> PdfNoTextDiagnosis {
 }
 
 pub fn parse_pdf_with_embedded_backend(bytes: &[u8], warnings: &mut Vec<String>) -> PdfParseResult {
-    let backends: [&dyn PdfTextBackend; 4] = [
+    let backends: [&dyn PdfTextBackend; 5] = [
         &PdfExtractBackend,
         &LopdfTextBackend,
         &LenientPdfExtractBackend,
+        &RawContentTextBackend,
         &InternalPdfTextBackend,
     ];
     parse_pdf_with_ordered_backends(bytes, &backends, warnings)
@@ -190,6 +193,8 @@ pub struct PdfExtractBackend;
 
 pub struct LenientPdfExtractBackend;
 
+pub struct RawContentTextBackend;
+
 pub struct LopdfTextBackend;
 
 type PdfPendingListItem = (String, Vec<AstNode>);
@@ -272,7 +277,7 @@ impl PdfTextBackend for LenientPdfExtractBackend {
             }
         };
         let mut text = String::new();
-        let extracted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let extracted = catch_pdf_extract_panic(std::panic::AssertUnwindSafe(|| {
             let mut output = pdf_extract::PlainTextOutput::new(&mut text);
             pdf_extract::output_doc(&document, &mut output)
         }));
@@ -285,6 +290,301 @@ impl PdfTextBackend for LenientPdfExtractBackend {
             },
         }
     }
+}
+
+impl PdfTextBackend for RawContentTextBackend {
+    fn name(&self) -> &str {
+        "raw-content"
+    }
+
+    fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction {
+        let document = match lopdf::Document::load_mem(bytes) {
+            Ok(document) => document,
+            Err(_) => {
+                return PdfTextExtraction {
+                    objects: Vec::new(),
+                    extraction_failed: true,
+                    ocr_required: true,
+                };
+            }
+        };
+        let mut lines = Vec::new();
+        for object_id in document.get_pages().values() {
+            let Ok(content_bytes) = document.get_page_content(*object_id) else {
+                continue;
+            };
+            let Ok(content) = lopdf::content::Content::decode(&content_bytes) else {
+                continue;
+            };
+            let font_decoders = raw_font_decoders_for_page(&document, *object_id);
+            collect_raw_pdf_text_lines(&content.operations, &font_decoders, &mut lines);
+        }
+        let objects = lines
+            .into_iter()
+            .map(|text| PdfTextObject {
+                text,
+                font_size: None,
+                x: None,
+                y: None,
+            })
+            .collect::<Vec<_>>();
+        PdfTextExtraction {
+            ocr_required: objects.is_empty(),
+            extraction_failed: objects.is_empty(),
+            objects,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RawFontDecoder {
+    Heuristic,
+    AdobeJapanIdentity,
+    AdobeJapanRksj,
+}
+
+fn raw_font_decoders_for_page(
+    document: &lopdf::Document,
+    object_id: lopdf::ObjectId,
+) -> BTreeMap<Vec<u8>, RawFontDecoder> {
+    document
+        .get_page_fonts(object_id)
+        .map(|fonts| {
+            fonts
+                .into_iter()
+                .map(|(name, font)| (name, raw_font_decoder(font)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn raw_font_decoder(font: &lopdf::Dictionary) -> RawFontDecoder {
+    let encoding = font.get(b"Encoding").and_then(lopdf::Object::as_name);
+    let base_font = font.get(b"BaseFont").and_then(lopdf::Object::as_name);
+    if encoding
+        .as_ref()
+        .is_ok_and(|name| matches!(*name, b"Identity-H" | b"Identity-V"))
+        && base_font
+            .as_ref()
+            .is_ok_and(|name| is_probably_adobe_japan_font(name))
+    {
+        RawFontDecoder::AdobeJapanIdentity
+    } else if encoding
+        .as_ref()
+        .is_ok_and(|name| matches!(*name, b"90ms-RKSJ-H" | b"90ms-RKSJ-V"))
+    {
+        RawFontDecoder::AdobeJapanRksj
+    } else {
+        RawFontDecoder::Heuristic
+    }
+}
+
+fn is_probably_adobe_japan_font(name: &[u8]) -> bool {
+    [
+        b"Ryumin".as_slice(),
+        b"ShinGo".as_slice(),
+        b"Gothic".as_slice(),
+        b"Midashi".as_slice(),
+        b"FutoGo".as_slice(),
+        b"Mincho".as_slice(),
+    ]
+    .iter()
+    .any(|needle| name.windows(needle.len()).any(|window| window == *needle))
+}
+
+fn collect_raw_pdf_text_lines(
+    operations: &[lopdf::content::Operation],
+    font_decoders: &BTreeMap<Vec<u8>, RawFontDecoder>,
+    lines: &mut Vec<String>,
+) {
+    let mut current = String::new();
+    let mut current_decoder = RawFontDecoder::Heuristic;
+    for operation in operations {
+        match operation.operator.as_str() {
+            "Tf" => {
+                if let Some(lopdf::Object::Name(name)) = operation.operands.first() {
+                    current_decoder = font_decoders
+                        .get(name)
+                        .copied()
+                        .unwrap_or(RawFontDecoder::Heuristic);
+                }
+            }
+            "Tj" | "'" => {
+                append_pdf_string_operand(
+                    operation.operands.first(),
+                    current_decoder,
+                    &mut current,
+                );
+                push_pdf_text_line(&mut current, lines);
+            }
+            "\"" => {
+                append_pdf_string_operand(operation.operands.get(2), current_decoder, &mut current);
+                push_pdf_text_line(&mut current, lines);
+            }
+            "TJ" => {
+                if let Some(lopdf::Object::Array(items)) = operation.operands.first() {
+                    for item in items {
+                        append_pdf_string_operand(Some(item), current_decoder, &mut current);
+                    }
+                    push_pdf_text_line(&mut current, lines);
+                }
+            }
+            "Td" | "TD" | "T*" | "ET" => push_pdf_text_line(&mut current, lines),
+            _ => {}
+        }
+    }
+    push_pdf_text_line(&mut current, lines);
+}
+
+fn append_pdf_string_operand(
+    operand: Option<&lopdf::Object>,
+    decoder: RawFontDecoder,
+    output: &mut String,
+) {
+    if let Some(lopdf::Object::String(bytes, _)) = operand {
+        let decoded = match decoder {
+            RawFontDecoder::Heuristic => decode_pdf_string_heuristic(bytes),
+            RawFontDecoder::AdobeJapanIdentity => decode_adobe_japan_identity(bytes)
+                .unwrap_or_else(|| decode_pdf_string_heuristic(bytes)),
+            RawFontDecoder::AdobeJapanRksj => {
+                decode_adobe_japan_rksj(bytes).unwrap_or_else(|| decode_pdf_string_heuristic(bytes))
+            }
+        };
+        if !decoded.is_empty() {
+            output.push_str(&decoded);
+        }
+    }
+}
+
+fn decode_adobe_japan_identity(bytes: &[u8]) -> Option<String> {
+    let unicode = predefined_cmap(hayro_cmap::CMapName::AdobeJapan1Ucs2)?;
+    let mut output = String::new();
+    for chunk in bytes.chunks_exact(2) {
+        let cid = u32::from(u16::from_be_bytes([chunk[0], chunk[1]]));
+        append_bf_string(&mut output, unicode.lookup_bf_string(cid));
+    }
+    Some(normalize_raw_pdf_text(&output))
+}
+
+fn decode_adobe_japan_rksj(bytes: &[u8]) -> Option<String> {
+    let encoding = predefined_cmap(hayro_cmap::CMapName::N90msRksjH)?;
+    let unicode = predefined_cmap(hayro_cmap::CMapName::AdobeJapan1Ucs2)?;
+    let mut output = String::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        let mut consumed = 1;
+        let mut code = bytes[index] as u32;
+        let mut cid = None;
+        if let Some(next) = bytes.get(index + 1) {
+            let two_byte_code = ((bytes[index] as u32) << 8) | *next as u32;
+            cid = encoding.lookup_cid_code(two_byte_code, 2);
+            if cid.is_some() {
+                consumed = 2;
+                code = two_byte_code;
+            }
+        }
+        let cid = cid.or_else(|| encoding.lookup_cid_code(code, 1))?;
+        append_bf_string(&mut output, unicode.lookup_bf_string(cid));
+        index += consumed;
+    }
+    Some(normalize_raw_pdf_text(&output))
+}
+
+fn predefined_cmap(name: hayro_cmap::CMapName<'_>) -> Option<hayro_cmap::CMap> {
+    let data = hayro_cmap::load_embedded(name)?;
+    hayro_cmap::CMap::parse(data, hayro_cmap::load_embedded)
+}
+
+fn append_bf_string(output: &mut String, value: Option<hayro_cmap::BfString>) {
+    match value {
+        Some(hayro_cmap::BfString::Char(character)) => output.push(character),
+        Some(hayro_cmap::BfString::String(text)) => output.push_str(&text),
+        None => {}
+    }
+}
+
+fn decode_pdf_string_heuristic(bytes: &[u8]) -> String {
+    if bytes.is_empty() {
+        return String::new();
+    }
+    if bytes.starts_with(&[0xfe, 0xff]) {
+        return decode_utf16be(&bytes[2..]);
+    }
+    let utf16be = decode_utf16be(bytes);
+    if japanese_signal_score(&utf16be) > 2 {
+        return utf16be;
+    }
+    let (shift_jis, _, had_errors) = encoding_rs::SHIFT_JIS.decode(bytes);
+    if !had_errors && japanese_signal_score(&shift_jis) > 0 {
+        return normalize_raw_pdf_text(&shift_jis);
+    }
+    String::from_utf8(bytes.to_vec())
+        .map(|text| normalize_raw_pdf_text(&text))
+        .unwrap_or_else(|_| normalize_raw_pdf_text(&shift_jis))
+}
+
+fn japanese_signal_score(text: &str) -> usize {
+    text.chars()
+        .filter(|character| {
+            matches!(
+                *character,
+                '\u{3040}'..='\u{30ff}' | '\u{3400}'..='\u{9fff}' | '\u{ff00}'..='\u{ffef}'
+            )
+        })
+        .take(8)
+        .count()
+}
+
+fn normalize_raw_pdf_text(text: &str) -> String {
+    text.chars()
+        .filter(|character| {
+            !character.is_control()
+                || *character == '\n'
+                || *character == '\r'
+                || *character == '\t'
+        })
+        .collect::<String>()
+}
+
+fn push_pdf_text_line(current: &mut String, lines: &mut Vec<String>) {
+    let line = current
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_string();
+    current.clear();
+    if line.chars().any(|character| !character.is_control()) && !is_raw_pdf_noise_line(&line) {
+        lines.push(line);
+    }
+}
+
+fn is_raw_pdf_noise_line(line: &str) -> bool {
+    if line == "@@" || line.contains("䁀") || line.contains("㽥") {
+        return true;
+    }
+    let total = line.chars().count();
+    if total < 8 {
+        return false;
+    }
+    let japanese = japanese_signal_score(line);
+    let ascii_alnum = line
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric())
+        .count();
+    let replacement = line.matches('\u{fffd}').count();
+    let symbolic = line
+        .chars()
+        .filter(|character| {
+            !character.is_alphanumeric()
+                && !character.is_whitespace()
+                && !matches!(
+                    *character,
+                    '、' | '。' | '，' | '．' | '・' | '「' | '」' | '（' | '）' | '【' | '】'
+                )
+        })
+        .count();
+    japanese == 0 && (ascii_alnum * 3 < total || replacement > 0 || symbolic * 2 > total)
 }
 
 fn contains_pdf_name(input: &str, key: &str, value: &str) -> bool {
@@ -350,12 +650,19 @@ impl PdfTextBackend for LopdfTextBackend {
 fn extract_text_from_mem_catching_panics(
     bytes: &[u8],
 ) -> Result<Result<String, pdf_extract::OutputError>, Box<dyn std::any::Any + Send>> {
+    catch_pdf_extract_panic(|| pdf_extract::extract_text_from_mem(bytes))
+}
+
+fn catch_pdf_extract_panic<R, F>(operation: F) -> Result<R, Box<dyn std::any::Any + Send>>
+where
+    F: FnOnce() -> R + std::panic::UnwindSafe,
+{
     let _guard = PDF_EXTRACT_PANIC_HOOK_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let previous_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
-    let result = std::panic::catch_unwind(|| pdf_extract::extract_text_from_mem(bytes));
+    let result = std::panic::catch_unwind(operation);
     std::panic::set_hook(previous_hook);
     result
 }

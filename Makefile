@@ -14,8 +14,10 @@ LLM_EVAL_MODEL ?= qwen2.5:7b-instruct
 LLM_EVAL_LIMIT ?= 20
 LLM_EVAL_DRY_RUN ?= 0
 PDF_PROBE_INPUT ?=
+MARKITDOWN_VENV ?= evaluation/.venv
+UV_CACHE_DIR ?= evaluation/.uv-cache
 
-.PHONY: default test regression-test bench corpus-eval corpus-eval-full llm-eval pdf-probe review verify ci fmt lint spell clippy install
+.PHONY: default test regression-test bench corpus-eval corpus-eval-full llm-eval pdf-probe markitdown-venv review verify ci fmt lint spell clippy install
 
 default: test
 
@@ -68,6 +70,10 @@ llm-eval:
 pdf-probe:
 	@test -n "$(PDF_PROBE_INPUT)" || (echo "PDF_PROBE_INPUT is required" && exit 2)
 	cargo run -p atom-evaluation --bin atom-pdf-probe -- "$(PDF_PROBE_INPUT)"
+
+markitdown-venv:
+	UV_CACHE_DIR="$(UV_CACHE_DIR)" uv venv --allow-existing "$(MARKITDOWN_VENV)"
+	UV_CACHE_DIR="$(UV_CACHE_DIR)" uv pip install --python "$(MARKITDOWN_VENV)/bin/python" -r evaluation/requirements-markitdown.txt
 
 fmt:
 	cargo fmt

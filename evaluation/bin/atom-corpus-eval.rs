@@ -530,6 +530,9 @@ fn run_external_tool(tool: &str, input: &Path, output_root: &Path, timeout_ms: u
             metrics: MarkdownMetrics::default(),
         };
     }
+    if tool == "markitdown-local" {
+        return run_markitdown_local(input, output_root, timeout_ms, started);
+    }
     if !command_exists("docker") {
         return ToolResult {
             tool: tool.to_string(),
@@ -545,24 +548,7 @@ fn run_external_tool(tool: &str, input: &Path, output_root: &Path, timeout_ms: u
     let output = run_external_tool_in_docker(tool, input, &output_path, &report_path, timeout_ms);
     match output {
         Ok(ExternalToolExecution::Finished(output)) if output.status.success() => {
-            match fs::read_to_string(&output_path) {
-                Ok(markdown) => ToolResult {
-                    tool: tool.to_string(),
-                    status: "ok".to_string(),
-                    elapsed_ms: started.elapsed().as_millis(),
-                    output_path: Some(output_path),
-                    error: None,
-                    metrics: markdown_metrics(&markdown),
-                },
-                Err(error) => ToolResult {
-                    tool: tool.to_string(),
-                    status: "error".to_string(),
-                    elapsed_ms: started.elapsed().as_millis(),
-                    output_path: None,
-                    error: Some(format!("runner did not write markdown output: {error}")),
-                    metrics: MarkdownMetrics::default(),
-                },
-            }
+            external_markdown_result(tool, output_path, started)
         }
         Ok(ExternalToolExecution::Finished(output)) => ToolResult {
             tool: tool.to_string(),
@@ -586,6 +572,116 @@ fn run_external_tool(tool: &str, input: &Path, output_root: &Path, timeout_ms: u
             elapsed_ms: started.elapsed().as_millis(),
             output_path: None,
             error: Some(error.to_string()),
+            metrics: MarkdownMetrics::default(),
+        },
+    }
+}
+
+fn run_markitdown_local(
+    input: &Path,
+    output_root: &Path,
+    timeout_ms: u64,
+    started: Instant,
+) -> ToolResult {
+    let tool = "markitdown-local";
+    let output_path = output_path(output_root, tool, input);
+    let report_path = sidecar_report_path(&output_path);
+    let Some(output_dir) = output_path.parent() else {
+        return ToolResult {
+            tool: tool.to_string(),
+            status: "error".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some("output path has no parent".to_string()),
+            metrics: MarkdownMetrics::default(),
+        };
+    };
+    if let Err(error) = fs::create_dir_all(output_dir) {
+        return ToolResult {
+            tool: tool.to_string(),
+            status: "error".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some(error.to_string()),
+            metrics: MarkdownMetrics::default(),
+        };
+    }
+    let python = env::var("ATOM_EVAL_MARKITDOWN_PYTHON")
+        .unwrap_or_else(|_| "evaluation/.venv/bin/python".to_string());
+    let runner = Path::new("evaluation/tool-runners/markitdown/run.py");
+    if !Path::new(&python).exists() {
+        return ToolResult {
+            tool: tool.to_string(),
+            status: "missing".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some(format!(
+                "local MarkItDown Python not found: {python}; run make markitdown-venv"
+            )),
+            metrics: MarkdownMetrics::default(),
+        };
+    }
+    let mut command = Command::new(python);
+    command
+        .arg(runner)
+        .arg(input)
+        .arg(&output_path)
+        .arg(&report_path);
+    match run_command_with_timeout(command, timeout_ms) {
+        Ok(ExternalToolExecution::Finished(output)) if output.status.success() => {
+            external_markdown_result(tool, output_path, started)
+        }
+        Ok(ExternalToolExecution::Finished(output)) => ToolResult {
+            tool: tool.to_string(),
+            status: "error".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+            metrics: MarkdownMetrics::default(),
+        },
+        Ok(ExternalToolExecution::TimedOut) => ToolResult {
+            tool: tool.to_string(),
+            status: "timeout".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some(format!("external tool exceeded timeout: {timeout_ms}ms")),
+            metrics: MarkdownMetrics::default(),
+        },
+        Err(error) => ToolResult {
+            tool: tool.to_string(),
+            status: "error".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some(error.to_string()),
+            metrics: MarkdownMetrics::default(),
+        },
+    }
+}
+
+fn external_markdown_result(tool: &str, output_path: PathBuf, started: Instant) -> ToolResult {
+    match fs::read_to_string(&output_path) {
+        Ok(markdown) if markdown.trim().is_empty() => ToolResult {
+            tool: tool.to_string(),
+            status: "empty".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: Some(output_path),
+            error: Some("runner produced empty markdown output".to_string()),
+            metrics: MarkdownMetrics::default(),
+        },
+        Ok(markdown) => ToolResult {
+            tool: tool.to_string(),
+            status: "ok".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: Some(output_path),
+            error: None,
+            metrics: markdown_metrics(&markdown),
+        },
+        Err(error) => ToolResult {
+            tool: tool.to_string(),
+            status: "error".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some(format!("runner did not write markdown output: {error}")),
             metrics: MarkdownMetrics::default(),
         },
     }
