@@ -389,12 +389,31 @@ fn pdf_conversion_errors_when_text_extraction_has_no_text_and_pdf_is_encrypted()
         .convert_bytes("encrypted.pdf", b"%PDF-1.7\ntrailer\n<</Encrypt 1 0 R>>")
         .unwrap_err();
 
-    assert!(error.to_string().contains("PDF is encrypted"));
+    assert!(error.to_string().contains("the PDF is encrypted"));
     assert!(
         error
             .to_string()
             .contains("PDF text extraction produced no text")
     );
+}
+
+#[test]
+fn pdf_conversion_describes_standard_security_handler_without_claiming_password_required() {
+    let converter = Converter::new();
+
+    let error = converter
+        .convert_bytes(
+            "permission-protected.pdf",
+            b"%PDF-1.7\ntrailer\n<</Encrypt 1 0 R>>\n1 0 obj\n<</Filter/Standard/P -1324>>\nendobj",
+        )
+        .unwrap_err();
+
+    assert!(
+        error
+            .to_string()
+            .contains("Standard security handler and may be permission-restricted")
+    );
+    assert!(!error.to_string().contains("Decrypt the PDF"));
 }
 
 fn minimal_text_pdf() -> Vec<u8> {
@@ -909,6 +928,16 @@ fn parses_xlsx_and_pptx_xml_to_structured_ast() {
         markdown::write_markdown(&pptx, Flavor::CommonMark),
         include_str!("fixtures/unit/pptx/simple-slide.expected.md")
     );
+}
+
+#[test]
+fn exposes_docx_parser_under_ooxml_namespace() {
+    let xml = include_str!("fixtures/unit/docx/heading-paragraph-list.document.xml");
+    let mut warnings = Vec::new();
+
+    let ast = ooxml::docx::parse_document_xml(xml, &mut warnings);
+
+    assert!(matches!(ast.first(), Some(AstNode::Heading { .. })));
 }
 
 #[test]

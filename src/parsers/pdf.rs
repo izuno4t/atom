@@ -12,6 +12,15 @@ pub fn is_encrypted_pdf(bytes: &[u8]) -> bool {
         .unwrap_or_else(|_| String::from_utf8_lossy(bytes).contains("/Encrypt"))
 }
 
+pub fn pdf_security_description(bytes: &[u8]) -> &'static str {
+    let lossy = String::from_utf8_lossy(bytes);
+    if lossy.contains("/Filter/Standard") && lossy.contains("/P ") {
+        "the PDF has a Standard security handler and may be permission-restricted"
+    } else {
+        "the PDF is encrypted"
+    }
+}
+
 pub fn diagnose_no_extractable_text(bytes: &[u8]) -> PdfNoTextDiagnosis {
     let lossy = String::from_utf8_lossy(bytes);
     let has_image = contains_pdf_name(&lossy, "/Subtype", "Image")
@@ -33,9 +42,10 @@ pub fn diagnose_no_extractable_text(bytes: &[u8]) -> PdfNoTextDiagnosis {
 }
 
 pub fn parse_pdf_with_embedded_backend(bytes: &[u8], warnings: &mut Vec<String>) -> PdfParseResult {
-    let backends: [&dyn PdfTextBackend; 3] = [
+    let backends: [&dyn PdfTextBackend; 4] = [
         &PdfExtractBackend,
         &LopdfTextBackend,
+        &LenientPdfExtractBackend,
         &InternalPdfTextBackend,
     ];
     parse_pdf_with_ordered_backends(bytes, &backends, warnings)
@@ -178,6 +188,8 @@ pub struct InternalPdfTextBackend;
 
 pub struct PdfExtractBackend;
 
+pub struct LenientPdfExtractBackend;
+
 pub struct LopdfTextBackend;
 
 type PdfPendingListItem = (String, Vec<AstNode>);
@@ -214,24 +226,58 @@ impl PdfTextBackend for PdfExtractBackend {
     fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction {
         let extracted = extract_text_from_mem_catching_panics(bytes);
         match extracted {
-            Ok(Ok(text)) => {
-                let objects = text
-                    .lines()
-                    .map(str::trim)
-                    .filter(|line| !line.is_empty())
-                    .map(|line| PdfTextObject {
-                        text: line.to_string(),
-                        font_size: None,
-                        x: None,
-                        y: None,
-                    })
-                    .collect::<Vec<_>>();
-                PdfTextExtraction {
-                    ocr_required: objects.is_empty(),
-                    objects,
-                    extraction_failed: false,
-                }
+            Ok(Ok(text)) => pdf_text_extraction_from_plain_text(text),
+            Ok(Err(_)) | Err(_) => PdfTextExtraction {
+                objects: Vec::new(),
+                extraction_failed: true,
+                ocr_required: true,
+            },
+        }
+    }
+}
+
+fn pdf_text_extraction_from_plain_text(text: String) -> PdfTextExtraction {
+    let objects = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|line| PdfTextObject {
+            text: line.to_string(),
+            font_size: None,
+            x: None,
+            y: None,
+        })
+        .collect::<Vec<_>>();
+    PdfTextExtraction {
+        ocr_required: objects.is_empty(),
+        objects,
+        extraction_failed: false,
+    }
+}
+
+impl PdfTextBackend for LenientPdfExtractBackend {
+    fn name(&self) -> &str {
+        "pdf-extract-lenient"
+    }
+
+    fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction {
+        let document = match lopdf::Document::load_mem(bytes) {
+            Ok(document) => document,
+            Err(_) => {
+                return PdfTextExtraction {
+                    objects: Vec::new(),
+                    extraction_failed: true,
+                    ocr_required: true,
+                };
             }
+        };
+        let mut text = String::new();
+        let extracted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut output = pdf_extract::PlainTextOutput::new(&mut text);
+            pdf_extract::output_doc(&document, &mut output)
+        }));
+        match extracted {
+            Ok(Ok(())) => pdf_text_extraction_from_plain_text(text),
             Ok(Err(_)) | Err(_) => PdfTextExtraction {
                 objects: Vec::new(),
                 extraction_failed: true,

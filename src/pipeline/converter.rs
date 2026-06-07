@@ -72,8 +72,9 @@ impl Converter {
                     result.ocr_required.to_string(),
                 ));
                 if result.ocr_required && pdf::is_encrypted_pdf(bytes) {
+                    let security_description = pdf::pdf_security_description(bytes);
                     return Err(io::Error::other(format!(
-                        "PDF text extraction produced no text after trying Rust PDF backends; the PDF is encrypted. Last backend: {}. Decrypt the PDF or provide an unencrypted copy.",
+                        "PDF text extraction produced no text after trying Rust PDF backends; {security_description}. Last backend: {}. atom's current Rust PDF backends cannot extract text from this protected PDF; provide an unprotected copy or use a backend that can ignore extraction restrictions.",
                         result.backend
                     )));
                 }
@@ -211,7 +212,7 @@ impl Converter {
                     if !comments.is_empty() {
                         metadata.push(("part".to_string(), "word/comments.xml".to_string()));
                     }
-                    docx::parse_document_xml_with_rels_and_notes(
+                    ooxml::docx::parse_document_xml_with_rels_and_notes(
                         &xml,
                         &rels,
                         &footnotes,

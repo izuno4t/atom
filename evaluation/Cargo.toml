@@ -25,5 +25,11 @@ path = "bin/atom-corpus-eval.rs"
 name = "atom-llm-eval"
 path = "bin/atom-llm-eval.rs"
 
+[[bin]]
+name = "atom-pdf-probe"
+path = "bin/atom-pdf-probe.rs"
+
 [dependencies]
 anything-to-markdown = { path = ".." }
+lopdf = { version = "0.38.0", default-features = false }
+pdf-extract = "0.10.0"

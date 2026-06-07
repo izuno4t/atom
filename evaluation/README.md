@@ -31,6 +31,7 @@ Git管理外にする。
 | `atom-bench` | 変換処理の簡易ベンチマーク |
 | `atom-corpus-eval` | 実ディレクトリの文書を使った既存ツール比較 |
 | `atom-llm-eval` | `atom-corpus-eval` の人手レビュー候補をローカルLLMで採点 |
+| `atom-pdf-probe` | PDF抽出方式の成立性と速度を確認する検証用probe |
 
 `atom-corpus-eval` の比較対象ツールは Docker コンテナとして実行する。
 比較ツールのDockerfileとラッパー実装は `tool-runners/` に置く。
@@ -72,6 +73,7 @@ make bench
 make corpus-eval
 make corpus-eval-full
 make llm-eval LLM_EVAL_DRY_RUN=1
+make pdf-probe PDF_PROBE_INPUT=/path/to/input.pdf
 ```
 
 `make corpus-eval` は初回確認向けに、既定では `atom` 単独、20件、

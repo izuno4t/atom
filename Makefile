@@ -13,8 +13,9 @@ LLM_EVAL_OUT ?= evaluation/reports/llm-eval.jsonl
 LLM_EVAL_MODEL ?= qwen2.5:7b-instruct
 LLM_EVAL_LIMIT ?= 20
 LLM_EVAL_DRY_RUN ?= 0
+PDF_PROBE_INPUT ?=
 
-.PHONY: default test regression-test bench corpus-eval corpus-eval-full llm-eval review verify ci fmt lint spell clippy install
+.PHONY: default test regression-test bench corpus-eval corpus-eval-full llm-eval pdf-probe review verify ci fmt lint spell clippy install
 
 default: test
 
@@ -63,6 +64,10 @@ llm-eval:
 		--model "$(LLM_EVAL_MODEL)" \
 		--limit "$(LLM_EVAL_LIMIT)" \
 		$(if $(filter 1,$(LLM_EVAL_DRY_RUN)),--dry-run,)
+
+pdf-probe:
+	@test -n "$(PDF_PROBE_INPUT)" || (echo "PDF_PROBE_INPUT is required" && exit 2)
+	cargo run -p atom-evaluation --bin atom-pdf-probe -- "$(PDF_PROBE_INPUT)"
 
 fmt:
 	cargo fmt

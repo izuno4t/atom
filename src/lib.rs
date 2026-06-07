@@ -15,8 +15,8 @@ pub use evaluation::{
     evaluate_structure_fidelity, evaluate_table_integrity, evaluate_translation_structure_preserve,
 };
 pub use integrations::{llm, media, ocr};
-pub use parsers::ooxml::{pptx, xlsx};
-pub use parsers::{docx, html, ooxml, pdf};
+pub use parsers::ooxml::{docx, pptx, xlsx};
+pub use parsers::{html, ooxml, pdf};
 pub use pipeline::{Converter, convert_bytes, convert_reader};
 pub use writers::markdown;
 

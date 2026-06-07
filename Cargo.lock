@@ -161,6 +161,8 @@ name = "atom-evaluation"
 version = "0.1.0"
 dependencies = [
  "anything-to-markdown",
+ "lopdf",
+ "pdf-extract",
 ]
 
 [[package]]

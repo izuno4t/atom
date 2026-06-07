@@ -1,4 +1,6 @@
-use anything_to_markdown::pdf::{InternalPdfTextBackend, PdfTextBackend, PdfTextExtraction};
+use anything_to_markdown::pdf::{
+    InternalPdfTextBackend, LenientPdfExtractBackend, PdfTextBackend, PdfTextExtraction,
+};
 use anything_to_markdown::{AstNode, pdf};
 
 #[test]
@@ -172,6 +174,21 @@ endstream
     assert_eq!(extraction.objects[0].text, "Positioned text");
     assert_eq!(extraction.objects[0].x, Some(72.0));
     assert_eq!(extraction.objects[0].y, Some(720.0));
+}
+
+#[test]
+fn lenient_pdf_extract_backend_extracts_text_showing_operators() {
+    let extraction = LenientPdfExtractBackend.extract_text(&valid_minimal_text_pdf());
+
+    let texts = extraction
+        .objects
+        .iter()
+        .map(|object| object.text.as_str())
+        .collect::<Vec<_>>();
+    let text = texts.join("\n");
+    assert!(text.contains("Fixture Title"), "{text:?}");
+    assert!(text.contains("Fixture body text."), "{text:?}");
+    assert!(!extraction.ocr_required);
 }
 
 struct StubPdfBackend;
@@ -592,4 +609,41 @@ fn pdf_repeated_one_headings_are_renumbered_in_order() {
             warning.contains("PDF heading inference renumbered repeated heading")
         })
     );
+}
+
+fn valid_minimal_text_pdf() -> Vec<u8> {
+    let content = "BT\n/F1 24 Tf\n72 720 Td\n(Fixture Title) Tj\nT*\n(Fixture body text.) Tj\nET\n";
+    let widths = std::iter::repeat_n("600", 256)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>".to_string(),
+        format!(
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /FirstChar 0 /LastChar 255 /Widths [{}] >>",
+            widths
+        ),
+        format!(
+            "<< /Length {} >>\nstream\n{}endstream",
+            content.len(),
+            content
+        ),
+    ];
+    let mut pdf = String::from("%PDF-1.4\n");
+    let mut offsets = vec![0_usize];
+    for (index, object) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.push_str(&format!("{} 0 obj\n{}\nendobj\n", index + 1, object));
+    }
+    let xref_offset = pdf.len();
+    pdf.push_str("xref\n0 6\n0000000000 65535 f \n");
+    for offset in offsets.iter().skip(1) {
+        pdf.push_str(&format!("{offset:010} 00000 n \n"));
+    }
+    pdf.push_str("trailer\n<< /Size 6 /Root 1 0 R >>\n");
+    pdf.push_str("start");
+    pdf.push_str(&format!("xref\n{xref_offset}\n"));
+    pdf.push_str("%%EOF\n");
+    pdf.into_bytes()
 }
