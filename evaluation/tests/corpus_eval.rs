@@ -217,3 +217,45 @@ fn corpus_eval_can_mark_external_tool_timeout() {
     assert!(report.contains("\"failure_reasons\""));
     assert!(report.contains("\"external tool timed out before execution\":1"));
 }
+
+#[test]
+fn corpus_eval_summarizes_markdown_structure_metrics() {
+    let root = "../target/corpus-eval-structure-test/input";
+    fs::create_dir_all(root).unwrap();
+    fs::write(
+        format!("{root}/sample.html"),
+        "<h1>Title</h1><p>Body</p><ul><li>One</li></ul><pre><code>x</code></pre>",
+    )
+    .unwrap();
+
+    let bin = std::env::var("CARGO_BIN_EXE_atom-corpus-eval")
+        .expect("atom-corpus-eval binary path is missing");
+    let output = Command::new(bin)
+        .arg("--root")
+        .arg(root)
+        .arg("--out")
+        .arg("../target/corpus-eval-structure-test/report.json")
+        .arg("--output-root")
+        .arg("../target/corpus-eval-structure-test/outputs")
+        .arg("--limit")
+        .arg("1")
+        .arg("--tools")
+        .arg("atom")
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report = fs::read_to_string("../target/corpus-eval-structure-test/report.json").unwrap();
+    assert!(report.contains("\"structure_average_by_tool\""));
+    assert!(report.contains("\"atom\":{\"bytes\":"));
+    assert!(report.contains("\"paragraphs\":1"));
+    assert!(report.contains("\"list_items\":1"));
+    assert!(report.contains("\"code_blocks\":1"));
+    assert!(report.contains("\"warning_count\":0"));
+    assert!(report.contains("\"report_feature_count\":"));
+    assert!(report.contains("\"short_outputs\""));
+}

@@ -106,7 +106,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-062 | ✅ | 整備するatomローカルインストールMakeターゲット | TASK-042 |
 | TASK-063 | ✅ | 整備するLLMなし大量評価コマンド | TASK-061,TASK-062 |
 | TASK-064 | ✅ | 集計する形式別成功率と失敗理由 | TASK-063 |
-| TASK-065 | ⏳ | 集計するMarkdown構造量スコア | TASK-064 |
+| TASK-065 | ✅ | 集計するMarkdown構造量スコア | TASK-064 |
 | TASK-066 | ⏳ | 抽出する人手レビュー候補 | TASK-065 |
 | TASK-067 | ⏳ | 作成するLLMなし評価サマリ | TASK-066 |
 | TASK-068 | ⏳ | 整備するOllamaローカルLLM構築手順 | TASK-067 |
@@ -569,6 +569,8 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
   warning数、report feature。
 - 成果: `evaluation/reports/auto-summary.json` に構造量スコアと極端値を出す。
 - 注意: 構造量が多いことを品質の証明にせず、レビュー候補抽出の信号として扱う。
+- 進捗: `atom-corpus-eval` のsummaryへ、tool別の平均構造量と極端に短い出力を
+  集計する。`make ci` で確認済み。
 
 ### TASK-066
 

@@ -231,10 +231,13 @@ struct ToolResult {
 struct MarkdownMetrics {
     bytes: usize,
     headings: usize,
+    paragraphs: usize,
     tables: usize,
     images: usize,
     code_blocks: usize,
     list_items: usize,
+    warning_count: usize,
+    report_feature_count: usize,
     score: f64,
 }
 
@@ -251,6 +254,41 @@ type ToolStatusCounts = BTreeMap<String, StatusCounts>;
 type ExtensionToolStatusCounts = BTreeMap<String, ToolStatusCounts>;
 type FailureReasonCounts = BTreeMap<String, StatusCounts>;
 
+#[derive(Default)]
+struct MarkdownMetricTotals {
+    count: usize,
+    bytes: usize,
+    headings: usize,
+    paragraphs: usize,
+    tables: usize,
+    images: usize,
+    code_blocks: usize,
+    list_items: usize,
+    warning_count: usize,
+    report_feature_count: usize,
+    score: f64,
+}
+
+struct AverageMarkdownMetrics {
+    bytes: f64,
+    headings: f64,
+    paragraphs: f64,
+    tables: f64,
+    images: f64,
+    code_blocks: f64,
+    list_items: f64,
+    warning_count: f64,
+    report_feature_count: f64,
+    score: f64,
+}
+
+struct ShortOutput {
+    input: PathBuf,
+    tool: String,
+    bytes: usize,
+    score: f64,
+}
+
 struct Summary {
     total_files: usize,
     by_extension: BTreeMap<String, usize>,
@@ -259,8 +297,42 @@ struct Summary {
     status_by_extension: ExtensionToolStatusCounts,
     status_by_tool: ToolStatusCounts,
     failure_reasons: FailureReasonCounts,
+    structure_average_by_tool: BTreeMap<String, AverageMarkdownMetrics>,
+    short_outputs: Vec<ShortOutput>,
     atom_wins: usize,
     superiority_claim: String,
+}
+
+impl MarkdownMetricTotals {
+    fn add(&mut self, metrics: &MarkdownMetrics) {
+        self.count += 1;
+        self.bytes += metrics.bytes;
+        self.headings += metrics.headings;
+        self.paragraphs += metrics.paragraphs;
+        self.tables += metrics.tables;
+        self.images += metrics.images;
+        self.code_blocks += metrics.code_blocks;
+        self.list_items += metrics.list_items;
+        self.warning_count += metrics.warning_count;
+        self.report_feature_count += metrics.report_feature_count;
+        self.score += metrics.score;
+    }
+
+    fn average(self) -> AverageMarkdownMetrics {
+        let count = self.count as f64;
+        AverageMarkdownMetrics {
+            bytes: self.bytes as f64 / count,
+            headings: self.headings as f64 / count,
+            paragraphs: self.paragraphs as f64 / count,
+            tables: self.tables as f64 / count,
+            images: self.images as f64 / count,
+            code_blocks: self.code_blocks as f64 / count,
+            list_items: self.list_items as f64 / count,
+            warning_count: self.warning_count as f64 / count,
+            report_feature_count: self.report_feature_count as f64 / count,
+            score: self.score / count,
+        }
+    }
 }
 
 fn select_files(
@@ -413,7 +485,10 @@ fn run_atom(input: &Path, output_root: &Path) -> io::Result<ToolResult> {
                 metrics: if unsupported {
                     MarkdownMetrics::default()
                 } else {
-                    markdown_metrics(&result.markdown)
+                    let mut metrics = markdown_metrics(&result.markdown);
+                    metrics.warning_count = result.report.warnings.len();
+                    metrics.report_feature_count = result.report.features.len();
+                    metrics
                 },
             })
         }
@@ -577,6 +652,8 @@ fn markdown_metrics(markdown: &str) -> MarkdownMetrics {
             metrics.images += 1;
         } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
             metrics.list_items += 1;
+        } else if !trimmed.is_empty() {
+            metrics.paragraphs += 1;
         }
     }
     metrics.score = if metrics.bytes == 0 {
@@ -587,6 +664,7 @@ fn markdown_metrics(markdown: &str) -> MarkdownMetrics {
             + metrics.images as f64 * 2.0
             + metrics.code_blocks as f64
             + metrics.list_items as f64 * 0.5
+            + metrics.paragraphs as f64 * 0.25
             + (metrics.bytes as f64).log10().min(6.0)
     };
     metrics
@@ -599,6 +677,8 @@ fn summarize(cases: &[CaseResult]) -> Summary {
     let mut status_by_extension = ExtensionToolStatusCounts::new();
     let mut status_by_tool = ToolStatusCounts::new();
     let mut failure_reasons = FailureReasonCounts::new();
+    let mut structure_totals = BTreeMap::<String, MarkdownMetricTotals>::new();
+    let mut short_outputs = Vec::new();
     let mut atom_wins = 0;
     for case in cases {
         *by_extension.entry(case.extension.clone()).or_insert(0) += 1;
@@ -623,6 +703,16 @@ fn summarize(cases: &[CaseResult]) -> Summary {
                 let entry = tool_scores.entry(result.tool.clone()).or_default();
                 entry.0 += result.metrics.score;
                 entry.1 += 1;
+                let totals = structure_totals.entry(result.tool.clone()).or_default();
+                totals.add(&result.metrics);
+                if result.metrics.bytes < 80 {
+                    short_outputs.push(ShortOutput {
+                        input: case.input.clone(),
+                        tool: result.tool.clone(),
+                        bytes: result.metrics.bytes,
+                        score: result.metrics.score,
+                    });
+                }
             } else {
                 let reason = result
                     .error
@@ -641,6 +731,17 @@ fn summarize(cases: &[CaseResult]) -> Summary {
         .into_iter()
         .map(|(tool, (score, count))| (tool, score / count as f64))
         .collect();
+    let structure_average_by_tool = structure_totals
+        .into_iter()
+        .map(|(tool, totals)| (tool, totals.average()))
+        .collect();
+    short_outputs.sort_by(|left, right| {
+        left.bytes
+            .cmp(&right.bytes)
+            .then_with(|| left.tool.cmp(&right.tool))
+            .then_with(|| left.input.cmp(&right.input))
+    });
+    short_outputs.truncate(20);
     Summary {
         total_files: cases.len(),
         by_extension,
@@ -649,6 +750,8 @@ fn summarize(cases: &[CaseResult]) -> Summary {
         status_by_extension,
         status_by_tool,
         failure_reasons,
+        structure_average_by_tool,
+        short_outputs,
         atom_wins,
         superiority_claim: "not_proven_without_human_review_or_ground_truth".to_string(),
     }
@@ -715,6 +818,8 @@ fn render_summary(summary: &Summary) -> String {
             "\"status_by_extension\":{},",
             "\"status_by_tool\":{},",
             "\"failure_reasons\":{},",
+            "\"structure_average_by_tool\":{},",
+            "\"short_outputs\":[{}],",
             "\"atom_wins\":{},",
             "\"superiority_claim\":\"{}\"",
             "}}"
@@ -726,6 +831,13 @@ fn render_summary(summary: &Summary) -> String {
         render_extension_tool_status_counts(&summary.status_by_extension),
         render_tool_status_counts(&summary.status_by_tool),
         render_tool_status_counts(&summary.failure_reasons),
+        render_structure_average_by_tool(&summary.structure_average_by_tool),
+        summary
+            .short_outputs
+            .iter()
+            .map(render_short_output)
+            .collect::<Vec<_>>()
+            .join(","),
         summary.atom_wins,
         escape_json(&summary.superiority_claim)
     )
@@ -787,19 +899,25 @@ fn render_metrics(metrics: &MarkdownMetrics) -> String {
             "{{",
             "\"bytes\":{},",
             "\"headings\":{},",
+            "\"paragraphs\":{},",
             "\"tables\":{},",
             "\"images\":{},",
             "\"code_blocks\":{},",
             "\"list_items\":{},",
+            "\"warning_count\":{},",
+            "\"report_feature_count\":{},",
             "\"score\":{}",
             "}}"
         ),
         metrics.bytes,
         metrics.headings,
+        metrics.paragraphs,
         metrics.tables,
         metrics.images,
         metrics.code_blocks,
         metrics.list_items,
+        metrics.warning_count,
+        metrics.report_feature_count,
         metrics.score
     )
 }
@@ -842,6 +960,69 @@ fn render_extension_tool_status_counts(values: &ExtensionToolStatusCounts) -> St
             })
             .collect::<Vec<_>>()
             .join(",")
+    )
+}
+
+fn render_structure_average_by_tool(values: &BTreeMap<String, AverageMarkdownMetrics>) -> String {
+    format!(
+        "{{{}}}",
+        values
+            .iter()
+            .map(|(tool, metrics)| {
+                format!(
+                    "\"{}\":{}",
+                    escape_json(tool),
+                    render_average_metrics(metrics)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+fn render_average_metrics(metrics: &AverageMarkdownMetrics) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"bytes\":{},",
+            "\"headings\":{},",
+            "\"paragraphs\":{},",
+            "\"tables\":{},",
+            "\"images\":{},",
+            "\"code_blocks\":{},",
+            "\"list_items\":{},",
+            "\"warning_count\":{},",
+            "\"report_feature_count\":{},",
+            "\"score\":{}",
+            "}}"
+        ),
+        metrics.bytes,
+        metrics.headings,
+        metrics.paragraphs,
+        metrics.tables,
+        metrics.images,
+        metrics.code_blocks,
+        metrics.list_items,
+        metrics.warning_count,
+        metrics.report_feature_count,
+        metrics.score
+    )
+}
+
+fn render_short_output(output: &ShortOutput) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"input\":\"{}\",",
+            "\"tool\":\"{}\",",
+            "\"bytes\":{},",
+            "\"score\":{}",
+            "}}"
+        ),
+        escape_json(&output.input.to_string_lossy()),
+        escape_json(&output.tool),
+        output.bytes,
+        output.score
     )
 }
 
