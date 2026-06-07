@@ -4,3 +4,4 @@
 !/outputs/.gitkeep
 /reports/*
 !/reports/.gitkeep
+/.venv/

@@ -1,5 +1,4 @@
 mod core;
-mod evaluation;
 mod integrations;
 mod parsers;
 mod pipeline;
@@ -7,12 +6,8 @@ pub mod writers;
 
 pub use core::{
     AstNode, ConversionOptions, ConversionReport, ConversionResult, Flavor, LlmBackend,
-    MediaCandidate, MetricScore, OcrCerCase, OcrEngine, OutputFormat, TableCell, TableRow,
-    load_config, parse_flavor, parse_format, parse_llm, parse_ocr,
-};
-pub use evaluation::{
-    evaluate_heading_recall, evaluate_lint_score, evaluate_ocr_cer, evaluate_ocr_cer_by_group,
-    evaluate_structure_fidelity, evaluate_table_integrity, evaluate_translation_structure_preserve,
+    MediaCandidate, OcrEngine, OutputFormat, TableCell, TableRow, load_config, parse_flavor,
+    parse_format, parse_llm, parse_ocr,
 };
 pub use integrations::{llm, media, ocr};
 pub use parsers::ooxml::{docx, pptx, xlsx};

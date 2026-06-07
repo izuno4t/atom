@@ -1,7 +1,6 @@
 use anything_to_markdown::{
     AstNode, ConversionOptions, Converter, Flavor, OutputFormat, TableCell, TableRow, docx,
-    evaluate_heading_recall, evaluate_lint_score, evaluate_structure_fidelity,
-    evaluate_table_integrity, evaluate_translation_structure_preserve, markdown, ooxml,
+    markdown, ooxml,
 };
 use std::fs;
 use std::io::{Cursor, Write};
@@ -557,25 +556,6 @@ fn markdown_flavor_controls_simple_table_output() {
 
     assert!(gfm.starts_with("| Name | Value |"));
     assert!(commonmark.starts_with("<table>"));
-}
-
-#[test]
-fn evaluation_functions_return_structured_scores() {
-    let expected = vec![AstNode::Heading {
-        level: 1,
-        text: "Title".to_string(),
-    }];
-    let actual = expected.clone();
-    let markdown = "# Title\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n";
-
-    assert_eq!(evaluate_structure_fidelity(&expected, &actual).score, 1.0);
-    assert_eq!(evaluate_heading_recall(&expected, markdown).score, 1.0);
-    assert_eq!(evaluate_table_integrity(markdown).score, 1.0);
-    assert_eq!(evaluate_lint_score(markdown).errors, 0);
-    assert_eq!(
-        evaluate_translation_structure_preserve("# A\n\n- x\n", "# B\n\n- y\n").score,
-        1.0
-    );
 }
 
 #[test]

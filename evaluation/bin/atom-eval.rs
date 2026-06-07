@@ -3,7 +3,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use anything_to_markdown::{Flavor, docx, evaluate_lint_score, markdown};
+use anything_to_markdown::{Flavor, docx, markdown};
+use atom_evaluation::evaluate_lint_score;
 
 fn main() {
     if let Err(error) = run() {

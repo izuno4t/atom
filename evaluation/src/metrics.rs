@@ -1,5 +1,21 @@
-use crate::{AstNode, MetricScore, OcrCerCase};
+use anything_to_markdown::AstNode;
 use std::collections::BTreeMap;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MetricScore {
+    pub name: String,
+    pub score: f64,
+    pub errors: usize,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OcrCerCase {
+    pub language: String,
+    pub orientation: String,
+    pub expected: String,
+    pub actual: String,
+}
 
 pub fn evaluate_structure_fidelity(expected: &[AstNode], actual: &[AstNode]) -> MetricScore {
     let expected_tree = EvalTree::document(expected);

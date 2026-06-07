@@ -115,19 +115,3 @@ impl MediaCandidate {
         )
     }
 }
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct MetricScore {
-    pub name: String,
-    pub score: f64,
-    pub errors: usize,
-    pub warnings: Vec<String>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct OcrCerCase {
-    pub language: String,
-    pub orientation: String,
-    pub expected: String,
-    pub actual: String,
-}

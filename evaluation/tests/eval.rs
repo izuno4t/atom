@@ -1,7 +1,7 @@
-use anything_to_markdown::{
-    AstNode, OcrCerCase, TableCell, TableRow, evaluate_heading_recall, evaluate_lint_score,
-    evaluate_ocr_cer_by_group, evaluate_structure_fidelity, evaluate_table_integrity,
-    evaluate_translation_structure_preserve,
+use anything_to_markdown::{AstNode, TableCell, TableRow};
+use atom_evaluation::{
+    OcrCerCase, evaluate_heading_recall, evaluate_lint_score, evaluate_ocr_cer_by_group,
+    evaluate_structure_fidelity, evaluate_table_integrity, evaluate_translation_structure_preserve,
 };
 
 #[test]
