@@ -78,6 +78,7 @@ proptest
 PyMuPDF
 PyMuPDF4LLM
 pytesseract
+qwen
 quickcheck
 quickstart
 Rasterizer

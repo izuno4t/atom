@@ -19,7 +19,7 @@ fn main() {
 }
 
 fn run() -> io::Result<()> {
-    let args = Args::parse();
+    let args = Args::parse()?;
     let files = select_files(&args.root, args.limit, args.per_ext, &args.extensions)?;
     let output_root = args.output_root;
     fs::create_dir_all(&output_root)?;
@@ -60,20 +60,49 @@ struct Args {
     max_bytes: u64,
 }
 
+#[derive(Default)]
+struct EvalConfig {
+    root: Option<PathBuf>,
+    out: Option<PathBuf>,
+    output_root: Option<PathBuf>,
+}
+
 impl Args {
-    fn parse() -> Self {
-        let mut root = PathBuf::from("/Users/izuno/マイドライブ/docs/outdated");
-        let mut out = PathBuf::from("target/corpus/report.json");
-        let mut output_root = PathBuf::from("target/corpus");
+    fn parse() -> io::Result<Self> {
+        let raw_args = env::args().skip(1).collect::<Vec<_>>();
+        let (config_path, explicit_config) = config_path_from_args(&raw_args);
+        let config = if config_path.exists() {
+            load_eval_config(&config_path)?
+        } else if explicit_config {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("config file not found: {}", config_path.display()),
+            ));
+        } else {
+            EvalConfig::default()
+        };
+
+        let mut root = config
+            .root
+            .unwrap_or_else(|| PathBuf::from("evaluation/inputs"));
+        let mut out = config
+            .out
+            .unwrap_or_else(|| PathBuf::from("evaluation/reports/report.json"));
+        let mut output_root = config
+            .output_root
+            .unwrap_or_else(|| PathBuf::from("evaluation/outputs"));
         let mut limit = 30;
         let mut per_ext = 5;
         let mut extensions = None;
         let mut tools = vec!["pandoc".to_string(), "markitdown".to_string()];
         let mut timeout_ms = 120_000;
         let mut max_bytes = 50 * 1024 * 1024;
-        let mut args = env::args().skip(1);
+        let mut args = raw_args.into_iter();
         while let Some(arg) = args.next() {
             match arg.as_str() {
+                "--config" => {
+                    let _ = args.next();
+                }
                 "--root" => {
                     if let Some(value) = args.next() {
                         root = PathBuf::from(value);
@@ -132,7 +161,7 @@ impl Args {
                 _ => {}
             }
         }
-        Self {
+        Ok(Self {
             root,
             out,
             output_root,
@@ -142,8 +171,43 @@ impl Args {
             tools,
             timeout_ms,
             max_bytes,
+        })
+    }
+}
+
+fn config_path_from_args(args: &[String]) -> (PathBuf, bool) {
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if arg == "--config" {
+            return iter
+                .next()
+                .map(|value| (PathBuf::from(value), true))
+                .unwrap_or_else(|| (PathBuf::from("atom.config.toml"), true));
         }
     }
+    (PathBuf::from("atom.config.toml"), false)
+}
+
+fn load_eval_config(path: &Path) -> io::Result<EvalConfig> {
+    let text = fs::read_to_string(path)?;
+    let mut config = EvalConfig::default();
+    for line in text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+    {
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = value.trim().trim_matches('"');
+        match key.trim() {
+            "evaluation_root" => config.root = Some(PathBuf::from(value)),
+            "evaluation_output_root" => config.output_root = Some(PathBuf::from(value)),
+            "evaluation_report_path" => config.out = Some(PathBuf::from(value)),
+            _ => {}
+        }
+    }
+    Ok(config)
 }
 
 struct ToolResult {

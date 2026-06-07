@@ -5,39 +5,39 @@ INSTALL_DIR ?= $(HOME)/bin
 default: test
 
 install:
-	cargo build --release --bin atom
+	cargo build --release -p anything-to-markdown --bin atom
 	install -d "$(INSTALL_DIR)"
 	install target/release/atom "$(INSTALL_DIR)/atom"
 
 test:
-	cargo test
+	cargo test --workspace
 
 regression-test:
-	cargo test --test integration
-	cargo run --bin atom-eval -- tests/fixtures/unit/docx target/eval-report.json
+	cargo test -p anything-to-markdown --test integration
+	cargo run -p atom-evaluation --bin atom-eval -- tests/fixtures/unit/docx target/eval-report.json
 	cat target/eval-report.json
-	cargo run --bin atom-compare-baseline -- target/eval-report.json tests/thresholds.toml
+	cargo run -p atom-evaluation --bin atom-compare-baseline -- target/eval-report.json tests/thresholds.toml
 
 review:
-	cargo test
+	cargo test --workspace
 
 bench:
-	cargo run --bin atom-bench -- tests/fixtures/unit/html/basic.html 10
+	cargo run -p atom-evaluation --bin atom-bench -- tests/fixtures/unit/html/basic.html 10
 
 corpus-eval:
-	cargo run --bin atom-corpus-eval -- --root evaluation/inputs --out evaluation/reports/report.json --output-root evaluation/outputs
+	cargo run -p atom-evaluation --bin atom-corpus-eval -- --config atom.config.toml
 
 fmt:
 	cargo fmt
 
 lint:
-	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/**/*.md CLAUDE.md AGENTS.md tests/fixtures/**/*.md benches/README.md
+	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/methods/*.md evaluation/tool-runners/*.md CLAUDE.md AGENTS.md tests/fixtures/**/*.md benches/README.md
 
 spell:
 	cspell
 
 clippy:
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 verify: fmt clippy test regression-test lint spell
 

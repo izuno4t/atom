@@ -104,6 +104,19 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-060 | ✅ | 実装する評価timeoutと対象外判定 | TASK-052 |
 | TASK-061 | ✅ | 判定する公式コーパス優位性レポート | TASK-055,TASK-057,TASK-059,TASK-060 |
 | TASK-062 | ✅ | 整備するatomローカルインストールMakeターゲット | TASK-042 |
+| TASK-063 | ⏳ | 整備するLLMなし大量評価コマンド | TASK-061,TASK-062 |
+| TASK-064 | ⏳ | 集計する形式別成功率と失敗理由 | TASK-063 |
+| TASK-065 | ⏳ | 集計するMarkdown構造量スコア | TASK-064 |
+| TASK-066 | ⏳ | 抽出する人手レビュー候補 | TASK-065 |
+| TASK-067 | ⏳ | 作成するLLMなし評価サマリ | TASK-066 |
+| TASK-068 | ⏳ | 整備するOllamaローカルLLM構築手順 | TASK-067 |
+| TASK-069 | ⏳ | 定義するローカルLLM評価JSONスキーマ | TASK-068 |
+| TASK-070 | ⏳ | 接続するOllamaローカルLLM境界 | TASK-069 |
+| TASK-071 | ⏳ | 実装する単体Markdown採点プロンプト | TASK-070 |
+| TASK-072 | ⏳ | 実装するMarkdownペア比較プロンプト | TASK-070 |
+| TASK-073 | ⏳ | 作成するatom-llm-eval評価バイナリ | TASK-071,TASK-072 |
+| TASK-074 | ⏳ | 統合する自動評価からLLM評価への流れ | TASK-073 |
+| TASK-075 | ⏳ | 抽出する改善候補とfixture化候補 | TASK-074 |
 
 ## タスク詳細（補足が必要な場合のみ）
 
@@ -523,6 +536,134 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
   `~/bin/atom` へインストールできる。
 - 注意: 配置先は `INSTALL_DIR` で上書き可能にし、既存の変換処理には影響
   させない。
+
+### TASK-063
+
+- 補足: LLMを使う前に、既存の `atom-corpus-eval` を大量文書評価の入口として
+  使えるように実行条件を固定する。
+- 対象: `evaluation/inputs/`、`evaluation/outputs/`、`evaluation/reports/`、
+  `--limit`、`--per-ext`、`--ext`、`--tools`、`--timeout-ms`、`--max-bytes`。
+- 成果: 形式横断と形式限定の標準コマンドを `evaluation/methods/evaluation.md`
+  に記録し、LLMなし評価を再現可能にする。
+- 注意: 実コーパスと出力はGit管理外にし、CIでは大量文書評価を実行しない。
+
+### TASK-064
+
+- 補足: corpus評価JSONから、形式別の変換成功率と失敗理由を集計する。
+- 対象: ok、error、timeout、unsupported、too_large、missing、入力形式、tool名。
+- 成果: `evaluation/reports/auto-summary.json` に形式別、tool別、status別の
+  集計を出す。
+- 注意: timeoutや対象外を成功扱いにせず、優位性判定から除外する。
+
+### TASK-065
+
+- 補足: 出力Markdownをプログラムで解析し、LLMなしで構造量を比較できるように
+  する。
+- 対象: bytes、heading、paragraph、list item、table、image、code block、
+  warning数、report feature。
+- 成果: `evaluation/reports/auto-summary.json` に構造量スコアと極端値を出す。
+- 注意: 構造量が多いことを品質の証明にせず、レビュー候補抽出の信号として扱う。
+
+### TASK-066
+
+- 補足: LLMなし評価の結果から、人が見るべき候補を自動抽出する。
+- 対象: atomだけ成功、atomだけ失敗、atom出力が極端に短い、warningが多い、
+  比較ツールと構造量差が大きい、形式ごとの代表例。
+- 成果: `evaluation/reports/auto-review-candidates.md` に候補一覧と理由を出す。
+- 注意: 候補抽出は優位性判定ではなく、人手またはLLM評価へ渡す入口にする。
+
+### TASK-067
+
+- 補足: LLMなし評価だけで分かる結果を、人間が読めるsummaryとしてまとめる。
+- 対象: 形式別成功率、tool別成功率、失敗理由上位、構造量傾向、レビュー候補。
+- 成果: `evaluation/reports/auto-summary.md` を生成する。
+- 注意: `superiority_claim` は人手確認またはground truthなしにprovenへ変えない。
+
+### TASK-068
+
+- 補足: LLMなし評価で絞った候補だけを後段評価できるように、Ollamaの導入、
+  起動、モデル取得、疎通確認の手順を整備する。
+- 対象: macOS、Linux、Dev Container外のローカル実行、モデル容量、
+  `ollama serve`、`ollama pull`、`ollama run`、HTTP疎通確認。
+- 成果: `evaluation/methods/llm-evaluation.md` にOllama構築手順と
+  推奨モデル例を記録する。
+- 注意: 具体的なモデル名は例として扱い、環境のメモリやGPU/CPU条件に応じて
+  差し替え可能にする。外部APIキーを前提にしない。
+
+### TASK-069
+
+- 補足: ローカルLLM評価の出力JSONを固定し、単体採点とペア比較の両方を
+  同じreportで扱えるようにする。
+- 対象: input path、candidate tool、overall score、観点別score、
+  missing content、major errors、winner、reason、model、prompt version。
+- 成果: `evaluation/methods/llm-evaluation.md` にスキーマと採点観点を定義する。
+- 注意: LLM判定は最終真実にせず、`superiority_claim` の根拠には
+  人手確認またはground truthが必要であることを明記する。
+
+### TASK-070
+
+- 補足: 外部LLMへ送信せず、OllamaのローカルHTTP APIを評価backendとして
+  接続する。
+- 対象: `--model ollama:<name>`、`--ollama-url`、timeout、retryなしの失敗処理。
+- 成果: ローカルLLMへpromptを送り、JSON応答を受け取る境界を実装する。
+- 注意: Ollama未起動、モデル未取得、JSON不正応答は評価失敗としてreportへ
+  残し、変換成功扱いにしない。
+
+### TASK-071
+
+- 補足: 1つのMarkdown候補を元文書材料に照らして採点するpromptを実装する。
+- 対象: reading order、heading structure、paragraph integrity、
+  table preservation、image caption traceability、noise、Markdown usability。
+- 成果: `mode=score` でcandidateごとの観点別scoreと理由をJSONへ出す。
+- 注意: 採点理由は短くし、入力本文の長い引用をreportへ保存しない。
+
+### TASK-072
+
+- 補足: atom出力と比較ツール出力を同じ元文書材料に照らして比較するpromptを
+  実装する。
+- 対象: atom vs pandoc、atom vs markitdown、atom vs docling、
+  atom vs pymupdf4llm、atom vs mammoth-js。
+- 成果: `mode=pairwise` でwinner、観点別差分、major errorsをJSONへ出す。
+- 注意: 同点または判断不能を許容し、必ず勝者を作らせない。
+
+### TASK-073
+
+- 補足: LLMなし評価で抽出した候補だけを対象に、`atom-corpus-eval` の後段で
+  動く `atom-llm-eval` を追加する。
+- 対象: Cargo bin、CLI引数、候補一覧読み込み、材料生成、LLM呼び出し、
+  report出力。
+- 成果: 次の形で実行できる。
+
+  ```bash
+  cargo run -p atom-evaluation --bin atom-llm-eval -- \
+    --root evaluation/inputs \
+    --outputs evaluation/outputs \
+    --candidates evaluation/reports/auto-review-candidates.md \
+    --out evaluation/reports/llm-review.json \
+    --model ollama:qwen2.5vl \
+    --mode pairwise
+  ```
+
+- 注意: 初期実装はテキスト材料中心とし、PDFページ画像やVLM入力は後続へ分ける。
+
+### TASK-074
+
+- 補足: LLMなし評価の候補抽出から、必要なケースだけローカルLLM評価へ渡す
+  2段階フローを整備する。
+- 対象: `make corpus-eval`、`make auto-eval-summary`、必要に応じた
+  `make llm-eval`、出力先規約、評価手順書。
+- 成果: LLMなし評価、候補抽出、ローカルLLM評価、集計の流れを再現可能にする。
+- 注意: CIではローカルLLM評価を実行しない。モデル容量と実データは環境依存とする。
+
+### TASK-075
+
+- 補足: LLMなし評価またはLLM評価で低スコア、atom敗北、重大欠落になったケースを、
+  実装改善候補とfixture化候補へ分ける。
+- 対象: 形式、観点、失敗理由、最小再現可能性、公開データ可否。
+- 成果: `evaluation/public-corpus-observations.md` または専用reportに、
+  改善候補とfixture化候補を記録する。
+- 注意: 自動評価やLLMの指摘だけでexpected Markdownを更新せず、元文書を
+  確認してからfixture化する。
 
 ## Backlog一覧
 

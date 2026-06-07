@@ -5,6 +5,10 @@ edition = "2024"
 license = "MIT"
 description = "Anything to Markdown."
 
+[workspace]
+members = ["evaluation"]
+resolver = "3"
+
 [lib]
 name = "anything_to_markdown"
 path = "src/lib.rs"
@@ -12,22 +16,6 @@ path = "src/lib.rs"
 [[bin]]
 name = "atom"
 path = "src/main.rs"
-
-[[bin]]
-name = "atom-eval"
-path = "evaluation/bin/atom-eval.rs"
-
-[[bin]]
-name = "atom-compare-baseline"
-path = "evaluation/bin/atom-compare-baseline.rs"
-
-[[bin]]
-name = "atom-bench"
-path = "evaluation/bin/atom-bench.rs"
-
-[[bin]]
-name = "atom-corpus-eval"
-path = "evaluation/bin/atom-corpus-eval.rs"
 
 [profile.release]
 lto = true

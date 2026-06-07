@@ -89,12 +89,16 @@ atom input.pdf --strict -o output.md
 
 設定ファイルは TOML 風の `key = "value"` 形式です。
 例は [atom.config.toml.example](atom.config.toml.example) を参照してください。
+実際の `atom.config.toml` はローカル専用で、Git管理外です。
 
 ```toml
 flavor = "gfm"
 format = "markdown"
 strict = false
 consent_external_send = false
+evaluation_root = "evaluation/inputs"
+evaluation_output_root = "evaluation/outputs"
+evaluation_report_path = "evaluation/reports/report.json"
 ```
 
 ## 対応状況

@@ -11,7 +11,7 @@ fixture化すべき失敗パターンを記録する。
 実行コマンド:
 
 ```bash
-cargo run --bin atom-corpus-eval -- \
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
   --root evaluation/inputs/markitdown \
   --out evaluation/reports/markitdown-public.json \
   --output-root evaluation/outputs/markitdown-public \
@@ -45,7 +45,7 @@ cargo run --bin atom-corpus-eval -- \
 実行コマンド:
 
 ```bash
-cargo run --bin atom-corpus-eval -- \
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
   --root evaluation/inputs/japanese-official \
   --out evaluation/reports/japanese-official.json \
   --output-root evaluation/outputs/japanese-official \
@@ -79,7 +79,7 @@ cargo run --bin atom-corpus-eval -- \
 実行コマンド:
 
 ```bash
-cargo run --bin atom-corpus-eval -- \
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
   --root evaluation/inputs/japanese-university \
   --out evaluation/reports/japanese-university-tools.json \
   --output-root evaluation/outputs/japanese-university-tools \

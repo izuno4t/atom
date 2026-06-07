@@ -1,0 +1,25 @@
+[package]
+name = "atom-evaluation"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "atom-eval"
+path = "bin/atom-eval.rs"
+
+[[bin]]
+name = "atom-compare-baseline"
+path = "bin/atom-compare-baseline.rs"
+
+[[bin]]
+name = "atom-bench"
+path = "bin/atom-bench.rs"
+
+[[bin]]
+name = "atom-corpus-eval"
+path = "bin/atom-corpus-eval.rs"
+
+[dependencies]
+anything-to-markdown = { path = ".." }

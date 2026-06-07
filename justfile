@@ -1,21 +1,21 @@
 default:
-    cargo test
+    cargo test --workspace
 
 test:
-    cargo test
+    cargo test --workspace
 
 eval:
-    cargo test --test integration
-    cargo run --bin atom-eval -- tests/fixtures/unit/docx target/eval-report.json
+    cargo test -p anything-to-markdown --test integration
+    cargo run -p atom-evaluation --bin atom-eval -- tests/fixtures/unit/docx target/eval-report.json
     cat target/eval-report.json
 
 review:
-    cargo test
+    cargo test --workspace
 
 bench:
-    cargo run --bin atom -- tests/fixtures/unit/html/basic.html >/dev/null
+    cargo run -p anything-to-markdown --bin atom -- tests/fixtures/unit/html/basic.html >/dev/null
 
 compare-baseline:
-    cargo test
+    cargo test --workspace
 
 ci: test eval bench compare-baseline

@@ -4,7 +4,7 @@ use std::process::Command;
 fn bench_binary_outputs_machine_readable_metrics() {
     let bin = std::env::var("CARGO_BIN_EXE_atom-bench").expect("atom-bench binary path is missing");
     let output = Command::new(bin)
-        .arg("tests/fixtures/unit/html/basic.html")
+        .arg("../tests/fixtures/unit/html/basic.html")
         .output()
         .unwrap();
 

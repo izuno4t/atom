@@ -16,8 +16,23 @@
 
 ## 実行方法
 
+評価対象ドキュメントの実パスは、Git管理外の `atom.config.toml` に保存する。
+`atom.config.toml.example` をコピーして、ローカル環境のパスへ書き換える。
+
+```toml
+evaluation_root = "evaluation/inputs"
+evaluation_output_root = "evaluation/outputs"
+evaluation_report_path = "evaluation/reports/report.json"
+```
+
+設定ファイルの評価パスを使う場合は、次のように実行する。
+
 ```bash
-cargo run --bin atom-corpus-eval -- \
+cargo run -p atom-evaluation --bin atom-corpus-eval -- --config atom.config.toml
+```
+
+```bash
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/report.json \
   --output-root evaluation/outputs \
@@ -29,7 +44,7 @@ cargo run --bin atom-corpus-eval -- \
 PDFだけを100件評価する場合は、次のように実行する。
 
 ```bash
-cargo run --bin atom-corpus-eval -- \
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/pdf-100-report.json \
   --output-root evaluation/outputs \

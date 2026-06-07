@@ -20,8 +20,9 @@ Git管理外にする。
 
 ## 評価用バイナリ
 
-評価用の実行ファイルは `evaluation/bin/` に置く。Cargo のバイナリ名は
-維持しているため、既存の `cargo run --bin ...` コマンドは変わらない。
+評価用の実行ファイルは `evaluation/bin/` に置く。評価ツールは
+`atom-evaluation` crate に分離し、変換本体の公開APIとは独立して管理する。
+実行時は `cargo run -p atom-evaluation --bin ...` を使う。
 
 | バイナリ | 目的 |
 | ---- | ---- |
@@ -70,8 +71,17 @@ make bench
 make corpus-eval
 ```
 
+評価対象ドキュメントの実パスは、Git管理外の `atom.config.toml` に保存できる。
+`atom.config.toml.example` をコピーして、ローカル環境のパスへ書き換える。
+
+```toml
+evaluation_root = "evaluation/inputs"
+evaluation_output_root = "evaluation/outputs"
+evaluation_report_path = "evaluation/reports/report.json"
+```
+
 ```bash
-cargo run --bin atom-corpus-eval -- \
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/report.json \
   --output-root evaluation/outputs \
@@ -80,10 +90,16 @@ cargo run --bin atom-corpus-eval -- \
   --tools pandoc,markitdown
 ```
 
+設定ファイルの評価パスを使う場合は、次のように実行する。
+
+```bash
+cargo run -p atom-evaluation --bin atom-corpus-eval -- --config atom.config.toml
+```
+
 PDFだけを100件評価する場合は次のように実行する。
 
 ```bash
-cargo run --bin atom-corpus-eval -- \
+cargo run -p atom-evaluation --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/pdf-100-report.json \
   --output-root evaluation/outputs \

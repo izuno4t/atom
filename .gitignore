@@ -20,6 +20,10 @@ target
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 evaluation/.DS_Store
+evaluation/target/
+
+# Local project configuration. Keep atom.config.toml.example in Git.
+atom.config.toml
 
 # Local pre-evaluation conversion inputs. Keep README/.gitkeep only.
 tests/inputs/*
