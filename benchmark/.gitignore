@@ -2,5 +2,6 @@
 /reports/
 /.venv/
 /.uv-cache/
+/benchmark.config.toml
 __pycache__/
 */__pycache__/

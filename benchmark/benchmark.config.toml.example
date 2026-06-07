@@ -1,0 +1,3 @@
+input_dir = "/path/to/input-directory"
+inventory_out = "benchmark/reports/markitdown-inventory.tsv"
+markdown_output_root = "benchmark/outputs/markitdown"

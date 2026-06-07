@@ -1,47 +1,75 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import hashlib
+import tomllib
 import time
 from pathlib import Path
-
-from markitdown import MarkItDown
-
-
-SUPPORTED_EXTENSIONS = {
-    ".pdf",
-    ".html",
-    ".htm",
-    ".docx",
-    ".pptx",
-    ".xlsx",
-    ".epub",
-    ".txt",
-}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input-dir", required=True)
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--output-root", required=True)
+    parser.add_argument("--config")
+    parser.add_argument("--input-dir")
+    parser.add_argument("--out")
+    parser.add_argument("--output-root")
     args = parser.parse_args()
 
-    input_dir = Path(args.input_dir)
-    out = Path(args.out)
-    output_root = Path(args.output_root)
+    config = load_config(args.config)
+    input_dir = Path(value_from_args_or_config(args.input_dir, config, "input_dir"))
+    out = Path(
+        value_from_args_or_config(
+            args.out, config, "inventory_out", "benchmark/reports/markitdown-inventory.tsv"
+        )
+    )
+    output_root = Path(
+        value_from_args_or_config(
+            args.output_root,
+            config,
+            "markdown_output_root",
+            "benchmark/outputs/markitdown",
+        )
+    )
+    if not input_dir.is_dir():
+        raise NotADirectoryError(f"input_dir is not a directory: {input_dir}")
+
     out.parent.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    rows = ["path\tstatus\telapsed_ms\tchars\tsha256\terror"]
-    converter = MarkItDown()
-    for path in sorted(input_dir.iterdir()):
-        if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-            continue
-        rows.append(inventory_file(converter, path, output_root))
+    from markitdown import MarkItDown
 
-    out.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    converter = MarkItDown()
+    files = sorted(path for path in input_dir.iterdir() if path.is_file())
+    with out.open("w", encoding="utf-8") as file:
+        file.write("path\tstatus\telapsed_ms\tchars\tsha256\terror\n")
+        for index, path in enumerate(files, start=1):
+            file.write(inventory_file(converter, path, output_root) + "\n")
+            file.flush()
+            print(f"{index}/{len(files)} {path}", flush=True)
+
     print(out)
     return 0
+
+
+def load_config(config_arg: str | None) -> dict[str, str]:
+    config_path = Path(config_arg) if config_arg else Path("benchmark/benchmark.config.toml")
+    if not config_path.exists():
+        if config_arg:
+            raise FileNotFoundError(f"config file not found: {config_path}")
+        return {}
+    with config_path.open("rb") as file:
+        data = tomllib.load(file)
+    return {str(key): str(value) for key, value in data.items()}
+
+
+def value_from_args_or_config(
+    arg_value: str | None, config: dict[str, str], key: str, default: str | None = None
+) -> str:
+    value = arg_value or config.get(key) or default
+    if value is None:
+        raise ValueError(f"{key} is required")
+    return value
 
 
 def inventory_file(converter: MarkItDown, path: Path, output_root: Path) -> str:

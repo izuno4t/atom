@@ -15,21 +15,19 @@
 
 ## MarkItDown Inventory
 
-指定したディレクトリ直下の対象ファイルだけをMarkItDownでMarkdown化し、
-TSVで棚卸しします。サブディレクトリは辿りません。
+指定したディレクトリ直下の通常ファイルをMarkItDownでMarkdown化し、TSVで
+棚卸しします。サブディレクトリは辿りません。MarkItDownで処理できない
+ファイルも `error` として記録します。
+
+設定は `benchmark/benchmark.config.toml` に置きます。この実ファイルは
+Git管理外です。
 
 ```bash
+cp benchmark/benchmark.config.toml.example benchmark/benchmark.config.toml
 uv venv benchmark/.venv
 uv pip install --python benchmark/.venv/bin/python -r benchmark/requirements-markitdown.txt
 
-benchmark/.venv/bin/python benchmark/scripts/markitdown_inventory.py \
-  --input-dir /path/to/input-directory \
-  --out benchmark/reports/markitdown-inventory.tsv \
-  --output-root benchmark/outputs/markitdown
+benchmark/.venv/bin/python benchmark/scripts/markitdown_inventory.py
 ```
 
-TSVの列は次の通りです。
-
-```text
-path	status	elapsed_ms	chars	sha256	error
-```
+TSVの列は `path`, `status`, `elapsed_ms`, `chars`, `sha256`, `error` です。
