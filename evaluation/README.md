@@ -69,7 +69,18 @@ docker build -t atom-eval-mammoth-js:latest evaluation/tool-runners/mammoth-js
 ```bash
 make bench
 make corpus-eval
+make corpus-eval-full
 ```
+
+`make corpus-eval` は初回確認向けに、既定では `atom` 単独、20件、
+形式ごと5件までを評価する。件数やtoolは `make` 変数で上書きできる。
+
+```bash
+make corpus-eval EVAL_LIMIT=100 EVAL_PER_EXT=20 EVAL_TOOLS=atom
+```
+
+`make corpus-eval-full` は比較ツール込みの標準評価を実行する。Docker
+イメージが必要な比較ツールは、未準備の場合 `missing` としてreportに記録される。
 
 評価対象ドキュメントの実パスは、Git管理外の
 `evaluation/atom-evaluation.config.toml` に保存できる。

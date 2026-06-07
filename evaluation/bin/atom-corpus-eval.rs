@@ -3,8 +3,9 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::Instant;
+use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use anything_to_markdown::{ConversionOptions, Converter, Flavor};
 
@@ -20,20 +21,12 @@ fn main() {
 
 fn run() -> io::Result<()> {
     let args = Args::parse()?;
-    let files = select_files(&args.root, args.limit, args.per_ext, &args.extensions)?;
-    let output_root = args.output_root;
+    let output_root = args.output_root.clone();
     fs::create_dir_all(&output_root)?;
 
     let mut cases = Vec::new();
-    for file in files {
-        cases.push(evaluate_file(
-            &file,
-            &output_root,
-            &args.tools,
-            args.max_bytes,
-            args.timeout_ms,
-        )?);
-    }
+    let mut counts = HashMap::<String, usize>::new();
+    evaluate_selected_files(&args.root, &output_root, &args, &mut cases, &mut counts)?;
 
     let summary = summarize(&cases);
     fs::write(
@@ -335,53 +328,63 @@ impl MarkdownMetricTotals {
     }
 }
 
-fn select_files(
-    root: &Path,
-    limit: usize,
-    per_ext: usize,
-    extensions: &Option<Vec<String>>,
-) -> io::Result<Vec<PathBuf>> {
-    let mut files = Vec::new();
-    collect_files(root, &mut files)?;
-    files.sort();
-    let mut selected = Vec::new();
-    let mut counts = HashMap::<String, usize>::new();
-    for file in files {
-        let Some(extension) = extension(&file) else {
-            continue;
-        };
-        if !SUPPORTED_EXTENSIONS.contains(&extension.as_str()) {
-            continue;
-        }
-        if let Some(extensions) = extensions
-            && !extensions.contains(&extension)
-        {
-            continue;
-        }
-        let count = counts.entry(extension).or_default();
-        if *count >= per_ext {
-            continue;
-        }
-        selected.push(file);
-        *count += 1;
-        if selected.len() >= limit {
+fn evaluate_selected_files(
+    dir: &Path,
+    output_root: &Path,
+    args: &Args,
+    cases: &mut Vec<CaseResult>,
+    counts: &mut HashMap<String, usize>,
+) -> io::Result<()> {
+    if cases.len() >= args.limit {
+        return Ok(());
+    }
+    let mut entries = fs::read_dir(dir)?.collect::<Result<Vec<_>, _>>()?;
+    entries.sort_by_key(|entry| entry.path());
+    for entry in entries {
+        if cases.len() >= args.limit {
             break;
         }
-    }
-    Ok(selected)
-}
-
-fn collect_files(dir: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
-            collect_files(&path, files)?;
-        } else if path.is_file() {
-            files.push(path);
+            evaluate_selected_files(&path, output_root, args, cases, counts)?;
+        } else if path.is_file()
+            && select_candidate_file(&path, counts, args.per_ext, &args.extensions)
+        {
+            cases.push(evaluate_file(
+                &path,
+                output_root,
+                &args.tools,
+                args.max_bytes,
+                args.timeout_ms,
+            )?);
         }
     }
     Ok(())
+}
+
+fn select_candidate_file(
+    file: &Path,
+    counts: &mut HashMap<String, usize>,
+    per_ext: usize,
+    extensions: &Option<Vec<String>>,
+) -> bool {
+    let Some(extension) = extension(file) else {
+        return false;
+    };
+    if !SUPPORTED_EXTENSIONS.contains(&extension.as_str()) {
+        return false;
+    }
+    if let Some(extensions) = extensions
+        && !extensions.contains(&extension)
+    {
+        return false;
+    }
+    let count = counts.entry(extension).or_default();
+    if *count >= per_ext {
+        return false;
+    }
+    *count += 1;
+    true
 }
 
 fn evaluate_file(
@@ -527,32 +530,42 @@ fn run_external_tool(tool: &str, input: &Path, output_root: &Path, timeout_ms: u
     }
     let output_path = output_path(output_root, tool, input);
     let report_path = sidecar_report_path(&output_path);
-    let output = run_external_tool_in_docker(tool, input, &output_path, &report_path);
+    let output = run_external_tool_in_docker(tool, input, &output_path, &report_path, timeout_ms);
     match output {
-        Ok(output) if output.status.success() => match fs::read_to_string(&output_path) {
-            Ok(markdown) => ToolResult {
-                tool: tool.to_string(),
-                status: "ok".to_string(),
-                elapsed_ms: started.elapsed().as_millis(),
-                output_path: Some(output_path),
-                error: None,
-                metrics: markdown_metrics(&markdown),
-            },
-            Err(error) => ToolResult {
-                tool: tool.to_string(),
-                status: "error".to_string(),
-                elapsed_ms: started.elapsed().as_millis(),
-                output_path: None,
-                error: Some(format!("runner did not write markdown output: {error}")),
-                metrics: MarkdownMetrics::default(),
-            },
-        },
-        Ok(output) => ToolResult {
+        Ok(ExternalToolExecution::Finished(output)) if output.status.success() => {
+            match fs::read_to_string(&output_path) {
+                Ok(markdown) => ToolResult {
+                    tool: tool.to_string(),
+                    status: "ok".to_string(),
+                    elapsed_ms: started.elapsed().as_millis(),
+                    output_path: Some(output_path),
+                    error: None,
+                    metrics: markdown_metrics(&markdown),
+                },
+                Err(error) => ToolResult {
+                    tool: tool.to_string(),
+                    status: "error".to_string(),
+                    elapsed_ms: started.elapsed().as_millis(),
+                    output_path: None,
+                    error: Some(format!("runner did not write markdown output: {error}")),
+                    metrics: MarkdownMetrics::default(),
+                },
+            }
+        }
+        Ok(ExternalToolExecution::Finished(output)) => ToolResult {
             tool: tool.to_string(),
             status: "error".to_string(),
             elapsed_ms: started.elapsed().as_millis(),
             output_path: None,
             error: Some(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+            metrics: MarkdownMetrics::default(),
+        },
+        Ok(ExternalToolExecution::TimedOut) => ToolResult {
+            tool: tool.to_string(),
+            status: "timeout".to_string(),
+            elapsed_ms: started.elapsed().as_millis(),
+            output_path: None,
+            error: Some(format!("external tool exceeded timeout: {timeout_ms}ms")),
             metrics: MarkdownMetrics::default(),
         },
         Err(error) => ToolResult {
@@ -566,12 +579,18 @@ fn run_external_tool(tool: &str, input: &Path, output_root: &Path, timeout_ms: u
     }
 }
 
+enum ExternalToolExecution {
+    Finished(Output),
+    TimedOut,
+}
+
 fn run_external_tool_in_docker(
     tool: &str,
     input: &Path,
     output_path: &Path,
     report_path: &Path,
-) -> io::Result<std::process::Output> {
+    timeout_ms: u64,
+) -> io::Result<ExternalToolExecution> {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let file_name = input.file_name().ok_or_else(|| {
         io::Error::new(io::ErrorKind::InvalidInput, "input path has no file name")
@@ -602,7 +621,32 @@ fn run_external_tool_in_docker(
         .arg(Path::new("/input").join(file_name))
         .arg(Path::new("/output").join(output_path.file_name().unwrap()))
         .arg(Path::new("/output").join(report_path.file_name().unwrap()));
-    command.output()
+    run_command_with_timeout(command, timeout_ms)
+}
+
+fn run_command_with_timeout(
+    mut command: Command,
+    timeout_ms: u64,
+) -> io::Result<ExternalToolExecution> {
+    let deadline = Duration::from_millis(timeout_ms);
+    let started = Instant::now();
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    loop {
+        if child.try_wait()?.is_some() {
+            return child
+                .wait_with_output()
+                .map(ExternalToolExecution::Finished);
+        }
+        if started.elapsed() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Ok(ExternalToolExecution::TimedOut);
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
 }
 
 fn docker_image(tool: &str) -> String {
@@ -1086,4 +1130,20 @@ fn escape_json(value: &str) -> String {
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn command_timeout_kills_long_running_process() {
+        let mut command = Command::new("sh");
+        command.arg("-c").arg("sleep 1");
+
+        let result = run_command_with_timeout(command, 10).unwrap();
+
+        assert!(matches!(result, ExternalToolExecution::TimedOut));
+    }
 }
