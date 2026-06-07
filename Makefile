@@ -8,8 +8,13 @@ EVAL_MAX_BYTES ?= 52428800
 EVAL_FULL_LIMIT ?= 200
 EVAL_FULL_PER_EXT ?= 40
 EVAL_FULL_TOOLS ?= pandoc,markitdown,docling,pymupdf4llm,mammoth-js
+LLM_EVAL_REPORT ?= evaluation/reports/report.json
+LLM_EVAL_OUT ?= evaluation/reports/llm-eval.jsonl
+LLM_EVAL_MODEL ?= qwen2.5:7b-instruct
+LLM_EVAL_LIMIT ?= 20
+LLM_EVAL_DRY_RUN ?= 0
 
-.PHONY: default test regression-test bench corpus-eval corpus-eval-full review verify ci fmt lint spell clippy install
+.PHONY: default test regression-test bench corpus-eval corpus-eval-full llm-eval review verify ci fmt lint spell clippy install
 
 default: test
 
@@ -50,6 +55,14 @@ corpus-eval-full:
 		--tools "$(EVAL_FULL_TOOLS)" \
 		--timeout-ms "$(EVAL_TIMEOUT_MS)" \
 		--max-bytes "$(EVAL_MAX_BYTES)"
+
+llm-eval:
+	cargo run -p atom-evaluation --bin atom-llm-eval -- \
+		--report "$(LLM_EVAL_REPORT)" \
+		--out "$(LLM_EVAL_OUT)" \
+		--model "$(LLM_EVAL_MODEL)" \
+		--limit "$(LLM_EVAL_LIMIT)" \
+		$(if $(filter 1,$(LLM_EVAL_DRY_RUN)),--dry-run,)
 
 fmt:
 	cargo fmt

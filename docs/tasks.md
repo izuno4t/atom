@@ -107,16 +107,16 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-063 | ✅ | 整備するLLMなし大量評価コマンド | TASK-061,TASK-062 |
 | TASK-064 | ✅ | 集計する形式別成功率と失敗理由 | TASK-063 |
 | TASK-065 | ✅ | 集計するMarkdown構造量スコア | TASK-064 |
-| TASK-066 | ⏳ | 抽出する人手レビュー候補 | TASK-065 |
-| TASK-067 | ⏳ | 作成するLLMなし評価サマリ | TASK-066 |
-| TASK-068 | ⏳ | 整備するOllamaローカルLLM構築手順 | TASK-067 |
-| TASK-069 | ⏳ | 定義するローカルLLM評価JSONスキーマ | TASK-068 |
-| TASK-070 | ⏳ | 接続するOllamaローカルLLM境界 | TASK-069 |
-| TASK-071 | ⏳ | 実装する単体Markdown採点プロンプト | TASK-070 |
-| TASK-072 | ⏳ | 実装するMarkdownペア比較プロンプト | TASK-070 |
-| TASK-073 | ⏳ | 作成するatom-llm-eval評価バイナリ | TASK-071,TASK-072 |
-| TASK-074 | ⏳ | 統合する自動評価からLLM評価への流れ | TASK-073 |
-| TASK-075 | ⏳ | 抽出する改善候補とfixture化候補 | TASK-074 |
+| TASK-066 | ✅ | 抽出する人手レビュー候補 | TASK-065 |
+| TASK-067 | ✅ | 作成するLLMなし評価サマリ | TASK-066 |
+| TASK-068 | ✅ | 整備するOllamaローカルLLM構築手順 | TASK-067 |
+| TASK-069 | ✅ | 定義するローカルLLM評価JSONスキーマ | TASK-068 |
+| TASK-070 | ✅ | 接続するOllamaローカルLLM境界 | TASK-069 |
+| TASK-071 | ✅ | 実装する単体Markdown採点プロンプト | TASK-070 |
+| TASK-072 | ✅ | 実装するMarkdownペア比較プロンプト | TASK-070 |
+| TASK-073 | ✅ | 作成するatom-llm-eval評価バイナリ | TASK-071,TASK-072 |
+| TASK-074 | ✅ | 統合する自動評価からLLM評価への流れ | TASK-073 |
+| TASK-075 | ✅ | 抽出する改善候補とfixture化候補 | TASK-074 |
 
 ## タスク詳細（補足が必要な場合のみ）
 

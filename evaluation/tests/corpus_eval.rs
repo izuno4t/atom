@@ -216,6 +216,16 @@ fn corpus_eval_can_mark_external_tool_timeout() {
     assert!(report.contains("\"pandoc\":{\"timeout\":1}"));
     assert!(report.contains("\"failure_reasons\""));
     assert!(report.contains("\"external tool timed out before execution\":1"));
+    assert!(report.contains("\"review_candidates\""));
+    assert!(report.contains("\"fewer_than_two_tools_succeeded\""));
+    let index =
+        fs::read_to_string("../target/corpus-eval-timeout-test/outputs/review-index.md").unwrap();
+    assert!(index.contains("## Review Candidates"));
+    let summary =
+        fs::read_to_string("../target/corpus-eval-timeout-test/outputs/evaluation-summary.md")
+            .unwrap();
+    assert!(summary.contains("# Corpus Evaluation Summary"));
+    assert!(summary.contains("## Status By Tool"));
 }
 
 #[test]
@@ -258,4 +268,41 @@ fn corpus_eval_summarizes_markdown_structure_metrics() {
     assert!(report.contains("\"warning_count\":0"));
     assert!(report.contains("\"report_feature_count\":"));
     assert!(report.contains("\"short_outputs\""));
+}
+
+#[test]
+fn llm_eval_dry_run_writes_prompt_requests_from_review_candidates() {
+    let root = "../target/llm-eval-dry-run-test";
+    fs::create_dir_all(format!("{root}/outputs/atom")).unwrap();
+    fs::write(format!("{root}/outputs/atom/sample.md"), "# Title\n\nBody").unwrap();
+    fs::write(
+        format!("{root}/report.json"),
+        format!(
+            r#"{{"summary":{{"review_candidates":[{{"input":"sample.html","priority":"medium","reasons":["fewer_than_two_tools_succeeded"],"output_paths":[{{"tool":"atom","path":"{root}/outputs/atom/sample.md"}}]}}]}}}}"#
+        ),
+    )
+    .unwrap();
+
+    let bin =
+        std::env::var("CARGO_BIN_EXE_atom-llm-eval").expect("atom-llm-eval binary path is missing");
+    let output = Command::new(bin)
+        .arg("--report")
+        .arg(format!("{root}/report.json"))
+        .arg("--out")
+        .arg(format!("{root}/llm-eval.jsonl"))
+        .arg("--dry-run")
+        .arg("--limit")
+        .arg("1")
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let requests = fs::read_to_string(format!("{root}/llm-eval.jsonl")).unwrap();
+    assert!(requests.contains("\"schema_version\":\"atom.llm-eval.v1\""));
+    assert!(requests.contains("\"prompt_kind\":\"single_markdown_score\""));
+    assert!(requests.contains("Evaluate the Markdown output on its own"));
 }

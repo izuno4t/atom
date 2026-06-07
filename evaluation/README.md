@@ -30,6 +30,7 @@ Git管理外にする。
 | `atom-compare-baseline` | 評価レポートをしきい値と比較する回帰検出 |
 | `atom-bench` | 変換処理の簡易ベンチマーク |
 | `atom-corpus-eval` | 実ディレクトリの文書を使った既存ツール比較 |
+| `atom-llm-eval` | `atom-corpus-eval` の人手レビュー候補をローカルLLMで採点 |
 
 `atom-corpus-eval` の比較対象ツールは Docker コンテナとして実行する。
 比較ツールのDockerfileとラッパー実装は `tool-runners/` に置く。
@@ -70,6 +71,7 @@ docker build -t atom-eval-mammoth-js:latest evaluation/tool-runners/mammoth-js
 make bench
 make corpus-eval
 make corpus-eval-full
+make llm-eval LLM_EVAL_DRY_RUN=1
 ```
 
 `make corpus-eval` は初回確認向けに、既定では `atom` 単独、20件、
@@ -130,3 +132,7 @@ cargo run -p atom-evaluation --bin atom-corpus-eval -- \
 ```
 
 出力Markdownは `evaluation/outputs/<tool>/` に保存されるため、人が直接確認できる。
+
+LLMを使う評価は、先に `make corpus-eval-full` で `review_candidates` を含む
+report JSONを作ってから実行する。Ollama構築、JSONLスキーマ、プロンプトは
+[methods/llm-evaluation.md](methods/llm-evaluation.md) を参照する。

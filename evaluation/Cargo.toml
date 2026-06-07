@@ -21,5 +21,9 @@ path = "bin/atom-bench.rs"
 name = "atom-corpus-eval"
 path = "bin/atom-corpus-eval.rs"
 
+[[bin]]
+name = "atom-llm-eval"
+path = "bin/atom-llm-eval.rs"
+
 [dependencies]
 anything-to-markdown = { path = ".." }

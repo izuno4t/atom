@@ -33,6 +33,10 @@ fn run() -> io::Result<()> {
         output_root.join("review-index.md"),
         render_review_index(&summary, &cases),
     )?;
+    fs::write(
+        output_root.join("evaluation-summary.md"),
+        render_evaluation_summary(&summary),
+    )?;
     if let Some(parent) = args.out.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -282,6 +286,13 @@ struct ShortOutput {
     score: f64,
 }
 
+struct ReviewCandidate {
+    input: PathBuf,
+    priority: String,
+    reasons: Vec<String>,
+    output_paths: Vec<(String, PathBuf)>,
+}
+
 struct Summary {
     total_files: usize,
     by_extension: BTreeMap<String, usize>,
@@ -292,6 +303,7 @@ struct Summary {
     failure_reasons: FailureReasonCounts,
     structure_average_by_tool: BTreeMap<String, AverageMarkdownMetrics>,
     short_outputs: Vec<ShortOutput>,
+    review_candidates: Vec<ReviewCandidate>,
     atom_wins: usize,
     superiority_claim: String,
 }
@@ -723,6 +735,7 @@ fn summarize(cases: &[CaseResult]) -> Summary {
     let mut failure_reasons = FailureReasonCounts::new();
     let mut structure_totals = BTreeMap::<String, MarkdownMetricTotals>::new();
     let mut short_outputs = Vec::new();
+    let mut review_candidates = Vec::new();
     let mut atom_wins = 0;
     for case in cases {
         *by_extension.entry(case.extension.clone()).or_insert(0) += 1;
@@ -770,6 +783,9 @@ fn summarize(cases: &[CaseResult]) -> Summary {
                     .or_default() += 1;
             }
         }
+        if let Some(candidate) = review_candidate(case) {
+            review_candidates.push(candidate);
+        }
     }
     let tool_average_score = tool_scores
         .into_iter()
@@ -786,6 +802,12 @@ fn summarize(cases: &[CaseResult]) -> Summary {
             .then_with(|| left.input.cmp(&right.input))
     });
     short_outputs.truncate(20);
+    review_candidates.sort_by(|left, right| {
+        review_priority_rank(&left.priority)
+            .cmp(&review_priority_rank(&right.priority))
+            .then_with(|| left.input.cmp(&right.input))
+    });
+    review_candidates.truncate(50);
     Summary {
         total_files: cases.len(),
         by_extension,
@@ -796,8 +818,82 @@ fn summarize(cases: &[CaseResult]) -> Summary {
         failure_reasons,
         structure_average_by_tool,
         short_outputs,
+        review_candidates,
         atom_wins,
         superiority_claim: "not_proven_without_human_review_or_ground_truth".to_string(),
+    }
+}
+
+fn review_candidate(case: &CaseResult) -> Option<ReviewCandidate> {
+    let atom = case.results.iter().find(|result| result.tool == "atom");
+    let successful = case
+        .results
+        .iter()
+        .filter(|result| result.status == "ok")
+        .collect::<Vec<_>>();
+    let mut reasons = Vec::new();
+    if let Some(atom) = atom
+        && atom.status != "ok"
+        && successful.iter().any(|result| result.tool != "atom")
+    {
+        reasons.push("atom_failed_but_baseline_succeeded".to_string());
+    }
+    if successful.len() < 2 {
+        reasons.push("fewer_than_two_tools_succeeded".to_string());
+    }
+    if case
+        .winner
+        .as_deref()
+        .is_some_and(|winner| winner != "atom")
+    {
+        reasons.push("baseline_best_by_heuristic_metrics".to_string());
+    }
+    if successful
+        .iter()
+        .any(|result| result.metrics.bytes > 0 && result.metrics.bytes < 80)
+    {
+        reasons.push("short_markdown_output".to_string());
+    }
+    if reasons.is_empty() {
+        return None;
+    }
+    let priority = if reasons
+        .iter()
+        .any(|reason| reason == "atom_failed_but_baseline_succeeded")
+    {
+        "high"
+    } else if reasons
+        .iter()
+        .any(|reason| reason == "fewer_than_two_tools_succeeded")
+    {
+        "medium"
+    } else {
+        "low"
+    }
+    .to_string();
+    let output_paths = case
+        .results
+        .iter()
+        .filter_map(|result| {
+            result
+                .output_path
+                .as_ref()
+                .map(|path| (result.tool.clone(), path.clone()))
+        })
+        .collect();
+    Some(ReviewCandidate {
+        input: case.input.clone(),
+        priority,
+        reasons,
+        output_paths,
+    })
+}
+
+fn review_priority_rank(priority: &str) -> usize {
+    match priority {
+        "high" => 0,
+        "medium" => 1,
+        _ => 2,
     }
 }
 
@@ -826,6 +922,25 @@ fn render_review_index(summary: &Summary, cases: &[CaseResult]) -> String {
         "- Superiority claim: `{}`\n\n",
         summary.superiority_claim
     ));
+    output.push_str("## Review Candidates\n\n");
+    output.push_str("| Priority | Input | Reasons | Outputs |\n");
+    output.push_str("| ---- | ---- | ---- | ---- |\n");
+    for candidate in &summary.review_candidates {
+        let outputs = candidate
+            .output_paths
+            .iter()
+            .map(|(tool, path)| format!("{}: `{}`", tool, path.display()))
+            .collect::<Vec<_>>()
+            .join("<br>");
+        output.push_str(&format!(
+            "| {} | `{}` | `{}` | {} |\n",
+            candidate.priority,
+            candidate.input.display(),
+            candidate.reasons.join(","),
+            outputs
+        ));
+    }
+    output.push('\n');
     output.push_str("## Cases\n\n");
     output.push_str("| Input | Winner | Judgment | Outputs |\n");
     output.push_str("| ---- | ---- | ---- | ---- |\n");
@@ -851,6 +966,52 @@ fn render_review_index(summary: &Summary, cases: &[CaseResult]) -> String {
     output
 }
 
+fn render_evaluation_summary(summary: &Summary) -> String {
+    let mut output = String::new();
+    output.push_str("# Corpus Evaluation Summary\n\n");
+    output.push_str("## Scope\n\n");
+    output.push_str(&format!("- Total files: {}\n", summary.total_files));
+    output.push_str(&format!("- atom wins: {}\n", summary.atom_wins));
+    output.push_str(&format!(
+        "- Superiority claim: `{}`\n\n",
+        summary.superiority_claim
+    ));
+    output.push_str("## Status By Tool\n\n");
+    output.push_str("| Tool | Status | Count |\n");
+    output.push_str("| ---- | ---- | ---- |\n");
+    for (tool, statuses) in &summary.status_by_tool {
+        for (status, count) in statuses {
+            output.push_str(&format!("| {} | {} | {} |\n", tool, status, count));
+        }
+    }
+    output.push('\n');
+    output.push_str("## Review Candidates\n\n");
+    output.push_str("| Priority | Input | Reasons |\n");
+    output.push_str("| ---- | ---- | ---- |\n");
+    for candidate in &summary.review_candidates {
+        output.push_str(&format!(
+            "| {} | `{}` | `{}` |\n",
+            candidate.priority,
+            candidate.input.display(),
+            candidate.reasons.join(",")
+        ));
+    }
+    output.push('\n');
+    output.push_str("## Short Outputs\n\n");
+    output.push_str("| Input | Tool | Bytes | Score |\n");
+    output.push_str("| ---- | ---- | ---- | ---- |\n");
+    for short_output in &summary.short_outputs {
+        output.push_str(&format!(
+            "| `{}` | {} | {} | {} |\n",
+            short_output.input.display(),
+            short_output.tool,
+            short_output.bytes,
+            short_output.score
+        ));
+    }
+    output
+}
+
 fn render_summary(summary: &Summary) -> String {
     format!(
         concat!(
@@ -864,6 +1025,7 @@ fn render_summary(summary: &Summary) -> String {
             "\"failure_reasons\":{},",
             "\"structure_average_by_tool\":{},",
             "\"short_outputs\":[{}],",
+            "\"review_candidates\":[{}],",
             "\"atom_wins\":{},",
             "\"superiority_claim\":\"{}\"",
             "}}"
@@ -880,6 +1042,12 @@ fn render_summary(summary: &Summary) -> String {
             .short_outputs
             .iter()
             .map(render_short_output)
+            .collect::<Vec<_>>()
+            .join(","),
+        summary
+            .review_candidates
+            .iter()
+            .map(render_review_candidate)
             .collect::<Vec<_>>()
             .join(","),
         summary.atom_wins,
@@ -1067,6 +1235,39 @@ fn render_short_output(output: &ShortOutput) -> String {
         escape_json(&output.tool),
         output.bytes,
         output.score
+    )
+}
+
+fn render_review_candidate(candidate: &ReviewCandidate) -> String {
+    format!(
+        concat!(
+            "{{",
+            "\"input\":\"{}\",",
+            "\"priority\":\"{}\",",
+            "\"reasons\":[{}],",
+            "\"output_paths\":[{}]",
+            "}}"
+        ),
+        escape_json(&candidate.input.to_string_lossy()),
+        escape_json(&candidate.priority),
+        candidate
+            .reasons
+            .iter()
+            .map(|reason| format!("\"{}\"", escape_json(reason)))
+            .collect::<Vec<_>>()
+            .join(","),
+        candidate
+            .output_paths
+            .iter()
+            .map(|(tool, path)| {
+                format!(
+                    "{{\"tool\":\"{}\",\"path\":\"{}\"}}",
+                    escape_json(tool),
+                    escape_json(&path.to_string_lossy())
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",")
     )
 }
 
