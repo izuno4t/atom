@@ -117,6 +117,11 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-073 | ✅ | 作成するatom-llm-eval評価バイナリ | TASK-071,TASK-072 |
 | TASK-074 | ✅ | 統合する自動評価からLLM評価への流れ | TASK-073 |
 | TASK-075 | ✅ | 抽出する改善候補とfixture化候補 | TASK-074 |
+| TASK-076 | ⏳ | 接続する変換本体のLLMプロバイダ呼び出し | TASK-033,TASK-070 |
+| TASK-077 | ⏳ | 実装するLLM再構造化プロンプト | TASK-076 |
+| TASK-078 | ⏳ | 実装するLLM整形結果の検証と差分保存 | TASK-077 |
+| TASK-079 | ⏳ | 追記する変換本体のLLM実行手順 | TASK-078 |
+| TASK-080 | ⏳ | 検証する画像資料のLLM補助変換方針 | TASK-079 |
 
 ## タスク詳細（補足が必要な場合のみ）
 
@@ -672,6 +677,60 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
   改善候補とfixture化候補を記録する。
 - 注意: 自動評価やLLMの指摘だけでexpected Markdownを更新せず、元文書を
   確認してからfixture化する。
+
+### TASK-076
+
+- 補足: 現状の `apply_llm_filters` は実プロバイダ呼び出しではなく境界確認に
+  留まるため、変換本体からOllamaまたは外部LLM backendへ実際に送れるようにする。
+- 対象: `--llm ollama:<model>`、OpenAI互換endpoint、timeout、失敗時warning、
+  `--allow-external-send` による外部送信制御。
+- 成果: `atom input.pdf --llm ollama:<model> --restructure -o out.md` で、
+  provider応答を変換結果へ反映できる。
+- 注意: デフォルトは外部送信ゼロを維持する。LLM未起動、API失敗、同意なしは
+  元のMarkdownを壊さずreportへ理由を残す。
+
+### TASK-077
+
+- 補足: OCR結果やPDF推論結果から、人間が読めるMarkdownへ整えるための
+  変換本体用promptを固定する。
+- 対象: 余計な改行・空白の削除、段落結合、見出し階層補正、OCR誤認識補正、
+  文書メタ情報候補の抽出。
+- 成果: prompt version、入力Markdown、期待するJSONまたはMarkdown応答形式を
+  テスト可能な形で実装する。
+- 注意: LLMに原文にない内容を補完させない。メタ情報は確定値と候補値を
+  区別してreportへ残す。
+
+### TASK-078
+
+- 補足: LLM整形結果をそのまま採用せず、ASTとして再解析し、構造破壊や
+  大量欠落を検出してから反映する。
+- 対象: AST validation、文字量・見出し数・表数の大幅減少検知、fallback、
+  LLM適用前後diff、report metadata。
+- 成果: LLM適用の成功、skip、fallback理由をreportとdiffで追跡できる。
+- 注意: 検証に失敗したLLM応答は破棄し、元の変換結果を出力する。
+
+### TASK-079
+
+- 補足: Ollamaの導入、モデル取得、起動確認は既存の
+  `evaluation/methods/llm-evaluation.md` と共通にし、変換本体で
+  `--llm --restructure` を使う実行例だけを同じ手順へ追記する。
+- 対象: `atom` 実行例、設定ファイル例、外部API利用時の同意フラグ、
+  トラブルシュート。
+- 成果: 既存のOllama手順から、LLM評価と文書変換後処理の両方を
+  再現できる。
+- 注意: 環境構築手順を重複させない。外部APIキーや機密文書送信を
+  前提にしない。
+
+### TASK-080
+
+- 補足: 画像、図、スキャン資料など、通常のテキスト抽出とOCRだけでは
+  Markdown化が難しい入力に対し、LLMまたはVLM補助を使う範囲を検証する。
+- 対象: ページ画像、図表キャプション、図中テキスト、OCR低信頼ページ、
+  ローカルVLM利用可否、外部送信同意。
+- 成果: LLM補助で扱う入力材料、禁止する入力材料、fallback条件、
+  fixture候補を記録する。
+- 注意: 画像そのものを外部へ送る処理はセキュリティ影響が大きいため、
+  実装前に送信先、送信内容、同意条件を明示する。
 
 ## Backlog一覧
 

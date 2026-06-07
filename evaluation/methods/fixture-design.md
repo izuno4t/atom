@@ -18,7 +18,7 @@ unit fixtureと実コーパス評価へ落とす基準を定義する。
 ## Fixture化フロー
 
 1. 公開データを収集し、出典、ライセンス、形式、選定理由を記録する。
-2. `atom-corpus-eval` でatomと比較ツールのMarkdown/reportを出力する。
+2. `benchmark/` のscriptで比較ツールのMarkdown/reportを出力する。
 3. 人が `evaluation/outputs/` を確認し、失敗パターンを分類する。
 4. 失敗原因を保ったまま、最小のDOCX/PPTX/XLSX/PDFを作成する。
 5. 作成した文書を `tests/fixtures/unit/` または `tests/fixtures/integration/` に置く。

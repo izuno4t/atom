@@ -15,8 +15,8 @@
 - 比較対象ツールはDocker内で実行する
 - Python、TypeScript、Rustなどのライブラリは薄いCLIラッパー経由で実行する
 - 同一入力ファイルに対して `atom` と比較対象ツールを順に実行する
-- 出力Markdownは `evaluation/outputs/<tool>/` に保存する
-- JSONレポートは `evaluation/reports/` に保存する
+- 出力Markdownは `benchmark/outputs/<tool>/` に保存する
+- レポートは `benchmark/reports/` に保存する
 - 比較ツールランナーはMarkdownとreport JSONをファイルへ書き、標準出力には
   短い実行サマリだけを出す
 

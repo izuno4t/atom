@@ -1,0 +1,6 @@
+/outputs/
+/reports/
+/.venv/
+/.uv-cache/
+__pycache__/
+*/__pycache__/

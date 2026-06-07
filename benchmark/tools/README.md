@@ -15,7 +15,7 @@
 - エラーは標準エラーと終了コードで返す
 - 外部ネットワークなしでも実行できるよう、依存関係はイメージ内に固定する
 
-`atom-corpus-eval` はこの契約を前提に、ツール別Dockerイメージを起動する。
+外部比較用scriptはこの契約を前提に、ツール別Dockerイメージを起動する。
 
 ## イメージ名
 
@@ -30,9 +30,9 @@
 ## ビルド例
 
 ```bash
-docker build -t atom-eval-pandoc:latest evaluation/tool-runners/pandoc
-docker build -t atom-eval-markitdown:latest evaluation/tool-runners/markitdown
-docker build -t atom-eval-docling:latest evaluation/tool-runners/docling
-docker build -t atom-eval-pymupdf4llm:latest evaluation/tool-runners/pymupdf4llm
-docker build -t atom-eval-mammoth-js:latest evaluation/tool-runners/mammoth-js
+docker build -t atom-eval-pandoc:latest benchmark/tools/pandoc
+docker build -t atom-eval-markitdown:latest benchmark/tools/markitdown
+docker build -t atom-eval-docling:latest benchmark/tools/docling
+docker build -t atom-eval-pymupdf4llm:latest benchmark/tools/pymupdf4llm
+docker build -t atom-eval-mammoth-js:latest benchmark/tools/mammoth-js
 ```

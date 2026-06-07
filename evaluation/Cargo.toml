@@ -18,14 +18,6 @@ name = "atom-bench"
 path = "bin/atom-bench.rs"
 
 [[bin]]
-name = "atom-corpus-eval"
-path = "bin/atom-corpus-eval.rs"
-
-[[bin]]
-name = "atom-llm-eval"
-path = "bin/atom-llm-eval.rs"
-
-[[bin]]
 name = "atom-pdf-probe"
 path = "bin/atom-pdf-probe.rs"
 

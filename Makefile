@@ -1,23 +1,7 @@
 INSTALL_DIR ?= $(HOME)/bin
-EVAL_CONFIG ?= evaluation/atom-evaluation.config.toml
-EVAL_LIMIT ?= 20
-EVAL_PER_EXT ?= 5
-EVAL_TOOLS ?= atom
-EVAL_TIMEOUT_MS ?= 120000
-EVAL_MAX_BYTES ?= 52428800
-EVAL_FULL_LIMIT ?= 200
-EVAL_FULL_PER_EXT ?= 40
-EVAL_FULL_TOOLS ?= pandoc,markitdown,docling,pymupdf4llm,mammoth-js
-LLM_EVAL_REPORT ?= evaluation/reports/report.json
-LLM_EVAL_OUT ?= evaluation/reports/llm-eval.jsonl
-LLM_EVAL_MODEL ?= qwen2.5:7b-instruct
-LLM_EVAL_LIMIT ?= 20
-LLM_EVAL_DRY_RUN ?= 0
 PDF_PROBE_INPUT ?=
-MARKITDOWN_VENV ?= evaluation/.venv
-UV_CACHE_DIR ?= evaluation/.uv-cache
 
-.PHONY: default test regression-test bench corpus-eval corpus-eval-full llm-eval pdf-probe markitdown-venv review verify ci fmt lint spell clippy install
+.PHONY: default test regression-test bench pdf-probe review verify ci fmt lint spell clippy install
 
 default: test
 
@@ -41,45 +25,15 @@ review:
 bench:
 	cargo run -p atom-evaluation --bin atom-bench -- tests/fixtures/unit/html/basic.html 10
 
-corpus-eval:
-	cargo run -p atom-evaluation --bin atom-corpus-eval -- \
-		--config "$(EVAL_CONFIG)" \
-		--limit "$(EVAL_LIMIT)" \
-		--per-ext "$(EVAL_PER_EXT)" \
-		--tools "$(EVAL_TOOLS)" \
-		--timeout-ms "$(EVAL_TIMEOUT_MS)" \
-		--max-bytes "$(EVAL_MAX_BYTES)"
-
-corpus-eval-full:
-	cargo run -p atom-evaluation --bin atom-corpus-eval -- \
-		--config "$(EVAL_CONFIG)" \
-		--limit "$(EVAL_FULL_LIMIT)" \
-		--per-ext "$(EVAL_FULL_PER_EXT)" \
-		--tools "$(EVAL_FULL_TOOLS)" \
-		--timeout-ms "$(EVAL_TIMEOUT_MS)" \
-		--max-bytes "$(EVAL_MAX_BYTES)"
-
-llm-eval:
-	cargo run -p atom-evaluation --bin atom-llm-eval -- \
-		--report "$(LLM_EVAL_REPORT)" \
-		--out "$(LLM_EVAL_OUT)" \
-		--model "$(LLM_EVAL_MODEL)" \
-		--limit "$(LLM_EVAL_LIMIT)" \
-		$(if $(filter 1,$(LLM_EVAL_DRY_RUN)),--dry-run,)
-
 pdf-probe:
 	@test -n "$(PDF_PROBE_INPUT)" || (echo "PDF_PROBE_INPUT is required" && exit 2)
 	cargo run -p atom-evaluation --bin atom-pdf-probe -- "$(PDF_PROBE_INPUT)"
-
-markitdown-venv:
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" uv venv --allow-existing "$(MARKITDOWN_VENV)"
-	UV_CACHE_DIR="$(UV_CACHE_DIR)" uv pip install --python "$(MARKITDOWN_VENV)/bin/python" -r evaluation/requirements-markitdown.txt
 
 fmt:
 	cargo fmt
 
 lint:
-	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/methods/*.md evaluation/tool-runners/*.md CLAUDE.md AGENTS.md tests/fixtures/**/README.md tests/fixtures/**/MANIFEST.md benches/README.md
+	markdownlint-cli2 README.md docs/*.md evaluation/*.md evaluation/methods/*.md benchmark/*.md benchmark/tools/*.md CLAUDE.md AGENTS.md tests/fixtures/**/README.md tests/fixtures/**/MANIFEST.md benches/README.md
 
 spell:
 	cspell

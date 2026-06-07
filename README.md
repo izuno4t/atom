@@ -152,7 +152,6 @@ make regression-test
 
 ```bash
 make bench
-make corpus-eval
 ```
 
 `just` を使う場合も同等の入口があります。
