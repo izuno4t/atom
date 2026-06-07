@@ -1,4 +1,4 @@
-use bonjil::{
+use anything_to_markdown::{
     AstNode, ConversionOptions, Converter, Flavor, OutputFormat, TableCell, TableRow, docx,
     evaluate_heading_recall, evaluate_lint_score, evaluate_structure_fidelity,
     evaluate_table_integrity, evaluate_translation_structure_preserve, markdown, ooxml,
@@ -201,7 +201,7 @@ fn converts_simple_html_to_markdown() {
 #[test]
 fn converts_html_image_to_markdown_image() {
     let mut warnings = Vec::new();
-    let ast = bonjil::html::parse_html(
+    let ast = anything_to_markdown::html::parse_html(
         r#"<main><img src="media/chart.png" alt="Chart" title="Figure 1"></main>"#,
         &mut warnings,
     );
@@ -237,7 +237,10 @@ fn markdown_writer_wraps_complex_image_destinations() {
 #[test]
 fn warns_when_image_caption_is_missing() {
     let mut warnings = Vec::new();
-    let ast = bonjil::html::parse_html(r#"<img src="media/chart.png" alt="Chart">"#, &mut warnings);
+    let ast = anything_to_markdown::html::parse_html(
+        r#"<img src="media/chart.png" alt="Chart">"#,
+        &mut warnings,
+    );
 
     assert_eq!(
         ast,
@@ -277,7 +280,7 @@ fn conversion_report_lists_referenced_media() {
 fn conversion_report_json_lists_used_features() {
     let converter = Converter::new().with_options(ConversionOptions {
         flavor: Flavor::Gfm,
-        ocr: bonjil::OcrEngine::NdlOcrLite,
+        ocr: anything_to_markdown::OcrEngine::NdlOcrLite,
         extract_media: Some("target/media-report-test".into()),
         ..ConversionOptions::default()
     });

@@ -1,11 +1,11 @@
 use std::fs;
 use std::path::Path;
 
-use bonjil::{Flavor, LlmBackend, OcrEngine, load_config};
+use anything_to_markdown::{Flavor, LlmBackend, OcrEngine, load_config};
 
 #[test]
-fn bonjil_toml_loads_core_conversion_options() {
-    let path = Path::new("target/config-test/bonjil.toml");
+fn atom_config_toml_loads_core_conversion_options() {
+    let path = Path::new("target/config-test/atom.config.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         path,

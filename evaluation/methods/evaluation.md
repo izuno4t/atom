@@ -1,6 +1,6 @@
 # Evaluation
 
-この文書は、実文書コーパスでbonjilと既存ツールを比較する手順を定義する。
+この文書は、実文書コーパスでatomと既存ツールを比較する手順を定義する。
 形式ごとの比較対象ツールは [../tools.md](../tools.md) に定義する。
 
 ## 目的
@@ -17,7 +17,7 @@
 ## 実行方法
 
 ```bash
-cargo run --bin bonjil-corpus-eval -- \
+cargo run --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/report.json \
   --output-root evaluation/outputs \
@@ -29,7 +29,7 @@ cargo run --bin bonjil-corpus-eval -- \
 PDFだけを100件評価する場合は、次のように実行する。
 
 ```bash
-cargo run --bin bonjil-corpus-eval -- \
+cargo run --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/pdf-100-report.json \
   --output-root evaluation/outputs \
@@ -43,12 +43,12 @@ cargo run --bin bonjil-corpus-eval -- \
 
 ## 比較対象
 
-- `bonjil`: このリポジトリの変換器
-- `pandoc`: Dockerイメージ `bonjil-eval-pandoc:latest` で実行
-- `markitdown`: Dockerイメージ `bonjil-eval-markitdown:latest` で実行
-- `docling`: Dockerイメージ `bonjil-eval-docling:latest` で実行
-- `pymupdf4llm`: Dockerイメージ `bonjil-eval-pymupdf4llm:latest` で実行
-- `mammoth-js`: Dockerイメージ `bonjil-eval-mammoth-js:latest` で実行
+- `atom`: このリポジトリの変換器
+- `pandoc`: Dockerイメージ `atom-eval-pandoc:latest` で実行
+- `markitdown`: Dockerイメージ `atom-eval-markitdown:latest` で実行
+- `docling`: Dockerイメージ `atom-eval-docling:latest` で実行
+- `pymupdf4llm`: Dockerイメージ `atom-eval-pymupdf4llm:latest` で実行
+- `mammoth-js`: Dockerイメージ `atom-eval-mammoth-js:latest` で実行
 
 Dockerが未導入、イメージが未作成、または変換に失敗したツールは、report JSONに
 `missing` または `error` として記録する。
@@ -62,7 +62,7 @@ report JSONの `superiority_claim` は、人間レビューまたはground truth
 優れていると言えるのは、同じ入力に対して以下を確認した場合に限る。
 
 - 既存ツールより構造保持が高い
-- 既存ツールが失敗した入力でbonjilが有用なMarkdownを出す
+- 既存ツールが失敗した入力でatomが有用なMarkdownを出す
 - 表、画像、キャプション、コードブロックの破損が少ない
 - warning/reportにより失敗原因を追跡できる
 

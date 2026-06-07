@@ -7,8 +7,8 @@ fn corpus_eval_outputs_comparison_report() {
     fs::create_dir_all(root).unwrap();
     fs::write(format!("{root}/sample.html"), "<h1>Title</h1><p>Body</p>").unwrap();
 
-    let bin = std::env::var("CARGO_BIN_EXE_bonjil-corpus-eval")
-        .expect("bonjil-corpus-eval binary path is missing");
+    let bin = std::env::var("CARGO_BIN_EXE_atom-corpus-eval")
+        .expect("atom-corpus-eval binary path is missing");
     let output = Command::new(bin)
         .arg("--root")
         .arg(root)
@@ -27,10 +27,10 @@ fn corpus_eval_outputs_comparison_report() {
         String::from_utf8_lossy(&output.stderr)
     );
     let report = fs::read_to_string("target/corpus-eval-test/report.json").unwrap();
-    assert!(report.contains("\"tool\":\"bonjil\""));
+    assert!(report.contains("\"tool\":\"atom\""));
     assert!(report.contains("\"summary\""));
     assert!(report.contains("\"superiority_claim\""));
-    assert!(fs::read_dir("target/corpus-eval-test/outputs/bonjil").is_ok());
+    assert!(fs::read_dir("target/corpus-eval-test/outputs/atom").is_ok());
     let index = fs::read_to_string("target/corpus-eval-test/outputs/review-index.md").unwrap();
     assert!(index.contains("# Corpus Evaluation Review Index"));
     assert!(index.contains("sample.html"));
@@ -43,8 +43,8 @@ fn corpus_eval_can_filter_by_extension() {
     fs::write(format!("{root}/sample.html"), "<h1>Title</h1><p>Body</p>").unwrap();
     fs::write(format!("{root}/sample.txt"), "plain text").unwrap();
 
-    let bin = std::env::var("CARGO_BIN_EXE_bonjil-corpus-eval")
-        .expect("bonjil-corpus-eval binary path is missing");
+    let bin = std::env::var("CARGO_BIN_EXE_atom-corpus-eval")
+        .expect("atom-corpus-eval binary path is missing");
     let output = Command::new(bin)
         .arg("--root")
         .arg(root)
@@ -78,8 +78,8 @@ fn corpus_eval_does_not_select_markdown_inputs() {
     fs::write(format!("{root}/sample.md"), "# Already markdown").unwrap();
     fs::write(format!("{root}/sample.html"), "<h1>Title</h1>").unwrap();
 
-    let bin = std::env::var("CARGO_BIN_EXE_bonjil-corpus-eval")
-        .expect("bonjil-corpus-eval binary path is missing");
+    let bin = std::env::var("CARGO_BIN_EXE_atom-corpus-eval")
+        .expect("atom-corpus-eval binary path is missing");
     let output = Command::new(bin)
         .arg("--root")
         .arg(root)
@@ -111,8 +111,8 @@ fn corpus_eval_marks_too_large_inputs_excluded() {
     fs::create_dir_all(root).unwrap();
     fs::write(format!("{root}/sample.html"), "<h1>Title</h1><p>Body</p>").unwrap();
 
-    let bin = std::env::var("CARGO_BIN_EXE_bonjil-corpus-eval")
-        .expect("bonjil-corpus-eval binary path is missing");
+    let bin = std::env::var("CARGO_BIN_EXE_atom-corpus-eval")
+        .expect("atom-corpus-eval binary path is missing");
     let output = Command::new(bin)
         .arg("--root")
         .arg(root)
@@ -143,8 +143,8 @@ fn corpus_eval_can_mark_external_tool_timeout() {
     fs::create_dir_all(root).unwrap();
     fs::write(format!("{root}/sample.html"), "<h1>Title</h1><p>Body</p>").unwrap();
 
-    let bin = std::env::var("CARGO_BIN_EXE_bonjil-corpus-eval")
-        .expect("bonjil-corpus-eval binary path is missing");
+    let bin = std::env::var("CARGO_BIN_EXE_atom-corpus-eval")
+        .expect("atom-corpus-eval binary path is missing");
     let output = Command::new(bin)
         .arg("--root")
         .arg(root)

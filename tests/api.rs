@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use bonjil::{ConversionOptions, Flavor, convert_bytes, convert_reader};
+use anything_to_markdown::{ConversionOptions, Flavor, convert_bytes, convert_reader};
 
 #[test]
 fn library_api_converts_bytes_and_readers() {

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("bonjil-compare-baseline: {error}");
+        eprintln!("atom-compare-baseline: {error}");
         std::process::exit(1);
     }
 }

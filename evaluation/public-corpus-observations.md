@@ -1,6 +1,6 @@
 # Public Corpus Observations
 
-公開データを `evaluation/inputs/` に置き、bonjilで変換した結果から
+公開データを `evaluation/inputs/` に置き、atomで変換した結果から
 fixture化すべき失敗パターンを記録する。
 
 ## 2026-05-17 MarkItDown公式テストファイル
@@ -11,13 +11,13 @@ fixture化すべき失敗パターンを記録する。
 実行コマンド:
 
 ```bash
-cargo run --bin bonjil-corpus-eval -- \
+cargo run --bin atom-corpus-eval -- \
   --root evaluation/inputs/markitdown \
   --out evaluation/reports/markitdown-public.json \
   --output-root evaluation/outputs/markitdown-public \
   --limit 4 \
   --per-ext 4 \
-  --tools bonjil
+  --tools atom
 ```
 
 ## 観測した失敗パターン
@@ -45,13 +45,13 @@ cargo run --bin bonjil-corpus-eval -- \
 実行コマンド:
 
 ```bash
-cargo run --bin bonjil-corpus-eval -- \
+cargo run --bin atom-corpus-eval -- \
   --root evaluation/inputs/japanese-official \
   --out evaluation/reports/japanese-official.json \
   --output-root evaluation/outputs/japanese-official \
   --limit 10 \
   --per-ext 10 \
-  --tools bonjil
+  --tools atom
 ```
 
 | Corpus ID | 形式 | 観測 |
@@ -79,7 +79,7 @@ cargo run --bin bonjil-corpus-eval -- \
 実行コマンド:
 
 ```bash
-cargo run --bin bonjil-corpus-eval -- \
+cargo run --bin atom-corpus-eval -- \
   --root evaluation/inputs/japanese-university \
   --out evaluation/reports/japanese-university-tools.json \
   --output-root evaluation/outputs/japanese-university-tools \
@@ -90,7 +90,7 @@ cargo run --bin bonjil-corpus-eval -- \
 
 観測:
 
-- `meiji-sample-graph.xlsx` は自動指標上bonjilが最上位だった。
+- `meiji-sample-graph.xlsx` は自動指標上atomが最上位だった。
 - PPTX、PDF、複数XLSXではPandoc、PyMuPDF4LLM、MarkItDownが上位だった。
 - Mammoth.jsはDOCXでは成功し、PPTX/XLSX/PDFでは対象外エラーになった。
 - 自動指標だけでは優位性を確定できないため、人手レビューが必要。

@@ -15,24 +15,24 @@
 - エラーは標準エラーと終了コードで返す
 - 外部ネットワークなしでも実行できるよう、依存関係はイメージ内に固定する
 
-`bonjil-corpus-eval` はこの契約を前提に、ツール別Dockerイメージを起動する。
+`atom-corpus-eval` はこの契約を前提に、ツール別Dockerイメージを起動する。
 
 ## イメージ名
 
 | ツール | 既定イメージ |
 | ---- | ---- |
-| Pandoc | `bonjil-eval-pandoc:latest` |
-| MarkItDown | `bonjil-eval-markitdown:latest` |
-| Docling | `bonjil-eval-docling:latest` |
-| PyMuPDF4LLM | `bonjil-eval-pymupdf4llm:latest` |
-| Mammoth.js/Turndown | `bonjil-eval-mammoth-js:latest` |
+| Pandoc | `atom-eval-pandoc:latest` |
+| MarkItDown | `atom-eval-markitdown:latest` |
+| Docling | `atom-eval-docling:latest` |
+| PyMuPDF4LLM | `atom-eval-pymupdf4llm:latest` |
+| Mammoth.js/Turndown | `atom-eval-mammoth-js:latest` |
 
 ## ビルド例
 
 ```bash
-docker build -t bonjil-eval-pandoc:latest evaluation/tool-runners/pandoc
-docker build -t bonjil-eval-markitdown:latest evaluation/tool-runners/markitdown
-docker build -t bonjil-eval-docling:latest evaluation/tool-runners/docling
-docker build -t bonjil-eval-pymupdf4llm:latest evaluation/tool-runners/pymupdf4llm
-docker build -t bonjil-eval-mammoth-js:latest evaluation/tool-runners/mammoth-js
+docker build -t atom-eval-pandoc:latest evaluation/tool-runners/pandoc
+docker build -t atom-eval-markitdown:latest evaluation/tool-runners/markitdown
+docker build -t atom-eval-docling:latest evaluation/tool-runners/docling
+docker build -t atom-eval-pymupdf4llm:latest evaluation/tool-runners/pymupdf4llm
+docker build -t atom-eval-mammoth-js:latest evaluation/tool-runners/mammoth-js
 ```

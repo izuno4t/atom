@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use bonjil::{Flavor, markdown, pdf};
+use anything_to_markdown::{Flavor, markdown, pdf};
 
 #[test]
 fn pdf_unit_fixtures_match_expected_markdown() {

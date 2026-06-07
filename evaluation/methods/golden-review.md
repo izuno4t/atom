@@ -1,6 +1,6 @@
 # Golden Review
 
-この文書は、実コーパス比較で `bonjil` が既存ツールより優れているかを
+この文書は、実コーパス比較で `atom` が既存ツールより優れているかを
 人手確認するためのgoldenレビュー表を定義する。
 
 ## 判定方針
@@ -30,8 +30,8 @@
 | GOLDEN-001 | `meiji-ppt2020-1-ex1.pptx` | pptx | Pandoc僅差優位 |
 | GOLDEN-002 | `meiji-ppt2020-2-ex1.pdf` | pdf | PyMuPDF4LLM優位 |
 | GOLDEN-003 | `meiji-ppt2020-3-ex1.pptx` | pptx | Pandoc優位 |
-| GOLDEN-004 | `meiji-sample-graph.xlsx` | xlsx | bonjil自動指標優位 |
-| GOLDEN-005 | `mhlw-trial-plan-old.xlsx` | xlsx | bonjil改善済み |
+| GOLDEN-004 | `meiji-sample-graph.xlsx` | xlsx | atom自動指標優位 |
+| GOLDEN-005 | `mhlw-trial-plan-old.xlsx` | xlsx | atom改善済み |
 | GOLDEN-006 | `mhlw-trial-plan-example.pdf` | pdf | PDF改善対象 |
 | GOLDEN-007 | `digital-agency-booklet.pdf` | pdf | PDF改善対象 |
 | GOLDEN-008 | `meiji-sample-text.docx` | docx | 既存ツール同等 |

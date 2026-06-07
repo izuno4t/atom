@@ -80,7 +80,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-036 | ✅ | 実装するXLSX入力パーサ | TASK-034 |
 | TASK-037 | ✅ | 実装するHTMLテーブルフォールバック | TASK-035,TASK-036 |
 | TASK-038 | ✅ | 実装するWMF/EMFラスタライズ | TASK-037 |
-| TASK-039 | ✅ | 実装する設定ファイルbonjil.toml | TASK-038 |
+| TASK-039 | ✅ | 実装する設定ファイルatom.config.toml | TASK-038 |
 | TASK-040 | ✅ | 実装するライブラリAPI | TASK-039 |
 | TASK-041 | ✅ | 整備する性能ベンチマーク | TASK-040 |
 | TASK-042 | ✅ | 整備するクロスプラットフォーム配布 | TASK-041 |
@@ -103,7 +103,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-059 | ✅ | 実装するmedia caption候補report | TASK-056,TASK-058 |
 | TASK-060 | ✅ | 実装する評価timeoutと対象外判定 | TASK-052 |
 | TASK-061 | ✅ | 判定する公式コーパス優位性レポート | TASK-055,TASK-057,TASK-059,TASK-060 |
-| TASK-062 | ✅ | 整備するbjローカルインストールMakeターゲット | TASK-042 |
+| TASK-062 | ✅ | 整備するatomローカルインストールMakeターゲット | TASK-042 |
 
 ## タスク詳細（補足が必要な場合のみ）
 
@@ -121,7 +121,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 
 ### TASK-001
 
-- 補足: `bonjil input.docx -o out.md` のCLI形だけを先に成立させる。
+- 補足: `atom input.docx -o out.md` のCLI形だけを先に成立させる。
 - 注意: この段階ではDOCX以外を受け付けなくてよい。
 
 ### TASK-002
@@ -405,7 +405,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 
 ### TASK-052
 
-- 補足: `evaluation/inputs/` の実コーパスを使い、bonjilと比較ツールを同一入力、同一出力配置、同一ルーブリックで横並び評価する。
+- 補足: `evaluation/inputs/` の実コーパスを使い、atomと比較ツールを同一入力、同一出力配置、同一ルーブリックで横並び評価する。
 - 対象: Docling、MarkItDown、PyMuPDF4LLM、Mammoth.js、Pandoc。形式ごとに利用可能なPython/Rust/TypeScriptライブラリも比較候補へ含める。
 - 成果: `evaluation/outputs/` にMarkdown、tool report、差分、
   目視レビュー用indexを出し、`evaluation/reports/` に集計を残す。
@@ -437,7 +437,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 
 ### TASK-055
 
-- 補足: PyMuPDF4LLMが保持した見出し/listをbonjilでも復元する。
+- 補足: PyMuPDF4LLMが保持した見出し/listをatomでも復元する。
 - 対象: font size、座標、行間、箇条書き記号、ページ内読順。
 - 成果: PDF出力でheading/list/paragraphを区別し、理由をwarningへ残す。
 - 注意: スコア稼ぎのために過剰に見出し化しない。
@@ -493,7 +493,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 
 - 補足: 公式代表セット比較で外部ツールが長時間戻らなかったため、
   ツール別timeout、形式別対象外、ファイルサイズ制限を評価runnerに入れる。
-- 対象: `bonjil-corpus-eval` のDocker実行境界、report status、error分類。
+- 対象: `atom-corpus-eval` のDocker実行境界、report status、error分類。
 - 成果: timeout、unsupported、too_largeをJSONとreview-indexへ出す。
 - 注意: timeoutを成功扱いにせず、優位性判定から除外する。
 - 進捗: `--max-bytes` と `--timeout-ms` を追加し、`too_large` と `timeout`
@@ -503,11 +503,11 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 ### TASK-061
 
 - 補足: 改善後に、公式/大学/補助コーパスを同一コマンドで再評価し、
-  bonjilが優れる事例と劣る事例を分けて報告する。
+  atomが優れる事例と劣る事例を分けて報告する。
 - 対象: PDF、PPTX、XLSX、DOCXの公開コーパス。
 - 成果: `evaluation/reports/` に人手レビュー込みの優位性レポートを出す。
 - 注意: `superiority_claim` は根拠が揃うまでprovenにしない。
-- 進捗: 再配布可能なrepository unit fixturesで `bonjil-corpus-eval` を実行し、
+- 進捗: 再配布可能なrepository unit fixturesで `atom-corpus-eval` を実行し、
   `evaluation/reports/official-corpus-superiority.json` とレビュー用Markdownを
   出力した。外部baseline toolと公開コーパスの同時比較は未実行のため、
   `superiority_claim` は `not_proven_without_human_review_or_ground_truth` のまま
@@ -515,12 +515,12 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 
 ### TASK-062
 
-- 補足: release版の`bonjil`実行ファイルを作成し、`bj`コマンドとして
+- 補足: release版の`atom`実行ファイルを作成し、`atom`コマンドとして
   ローカルの実行パスへ
   配置できるMakeターゲットを用意する。
 - 対象: `Makefile` の開発者向けターゲット。
-- 成果: `make install` で `target/release/bonjil` を作成し、既定では
-  `~/bin/bj` へインストールできる。
+- 成果: `make install` で `target/release/atom` を作成し、既定では
+  `~/bin/atom` へインストールできる。
 - 注意: 配置先は `INSTALL_DIR` で上書き可能にし、既存の変換処理には影響
   させない。
 

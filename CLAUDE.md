@@ -1,8 +1,9 @@
-# bonjil 開発ハーネス
+# atom 開発ハーネス
 
 ## このリポジトリは何か
 
-ドキュメントを人間が読める構造化 Markdown に変換する Rust 製 CLI / API。
+Anything to Markdown。ドキュメントを人間が読める構造化 Markdown に
+変換する Rust 製 CLI / API。
 要件は `docs/requirements.md`、実行計画は `docs/tasks.md` を参照する。
 
 ## 改善ループの回し方

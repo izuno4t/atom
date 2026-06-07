@@ -2,8 +2,7 @@ use std::process::Command;
 
 #[test]
 fn bench_binary_outputs_machine_readable_metrics() {
-    let bin =
-        std::env::var("CARGO_BIN_EXE_bonjil-bench").expect("bonjil-bench binary path is missing");
+    let bin = std::env::var("CARGO_BIN_EXE_atom-bench").expect("atom-bench binary path is missing");
     let output = Command::new(bin)
         .arg("tests/fixtures/unit/html/basic.html")
         .output()

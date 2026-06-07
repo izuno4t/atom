@@ -5,27 +5,27 @@ INSTALL_DIR ?= $(HOME)/bin
 default: test
 
 install:
-	cargo build --release --bin bonjil
+	cargo build --release --bin atom
 	install -d "$(INSTALL_DIR)"
-	install target/release/bonjil "$(INSTALL_DIR)/bj"
+	install target/release/atom "$(INSTALL_DIR)/atom"
 
 test:
 	cargo test
 
 regression-test:
 	cargo test --test integration
-	cargo run --bin bonjil-eval -- tests/fixtures/unit/docx target/eval-report.json
+	cargo run --bin atom-eval -- tests/fixtures/unit/docx target/eval-report.json
 	cat target/eval-report.json
-	cargo run --bin bonjil-compare-baseline -- target/eval-report.json tests/thresholds.toml
+	cargo run --bin atom-compare-baseline -- target/eval-report.json tests/thresholds.toml
 
 review:
 	cargo test
 
 bench:
-	cargo run --bin bonjil-bench -- tests/fixtures/unit/html/basic.html 10
+	cargo run --bin atom-bench -- tests/fixtures/unit/html/basic.html 10
 
 corpus-eval:
-	cargo run --bin bonjil-corpus-eval -- --root evaluation/inputs --out evaluation/reports/report.json --output-root evaluation/outputs
+	cargo run --bin atom-corpus-eval -- --root evaluation/inputs --out evaluation/reports/report.json --output-root evaluation/outputs
 
 fmt:
 	cargo fmt

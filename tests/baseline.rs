@@ -3,8 +3,8 @@ use std::process::Command;
 
 #[test]
 fn compare_baseline_fails_on_eval_regression_and_accepts_clean_report() {
-    let bin = std::env::var("CARGO_BIN_EXE_bonjil-compare-baseline")
-        .expect("bonjil-compare-baseline binary path is missing");
+    let bin = std::env::var("CARGO_BIN_EXE_atom-compare-baseline")
+        .expect("atom-compare-baseline binary path is missing");
     let dir = std::env::current_dir()
         .unwrap()
         .join("target")

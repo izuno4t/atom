@@ -1,8 +1,8 @@
 use std::io;
 use std::path::Path;
 
-use bonjil::OcrEngine;
-use bonjil::ocr::{self, OcrBackend};
+use anything_to_markdown::OcrEngine;
+use anything_to_markdown::ocr::{self, OcrBackend};
 
 struct StubOcr;
 
@@ -30,9 +30,9 @@ fn ndlocr_lite_subprocess_command_is_exposed() {
 
 #[test]
 fn ocr_rs_backend_requires_model_environment() {
-    if std::env::var_os("BONJIL_OCR_RS_DET_MODEL").is_some()
-        && std::env::var_os("BONJIL_OCR_RS_REC_MODEL").is_some()
-        && std::env::var_os("BONJIL_OCR_RS_CHARSET").is_some()
+    if std::env::var_os("ATOM_OCR_RS_DET_MODEL").is_some()
+        && std::env::var_os("ATOM_OCR_RS_REC_MODEL").is_some()
+        && std::env::var_os("ATOM_OCR_RS_CHARSET").is_some()
     {
         return;
     }
@@ -42,6 +42,6 @@ fn ocr_rs_backend_requires_model_environment() {
         Err(error) => error,
     };
 
-    assert!(backend.to_string().contains("BONJIL_OCR_RS_DET_MODEL"));
+    assert!(backend.to_string().contains("ATOM_OCR_RS_DET_MODEL"));
     assert!(ocr::command_for_engine(&OcrEngine::OcrRs).is_none());
 }

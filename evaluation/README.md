@@ -1,6 +1,6 @@
 # Evaluation
 
-このディレクトリは、`bonjil` の評価に必要なリソースを集約する。
+このディレクトリは、`atom` の評価に必要なリソースを集約する。
 
 ## ディレクトリ構成
 
@@ -25,28 +25,28 @@ Git管理外にする。
 
 | バイナリ | 目的 |
 | ---- | ---- |
-| `bonjil-eval` | fixture と期待Markdownを比較する評価レポート生成 |
-| `bonjil-compare-baseline` | 評価レポートをしきい値と比較する回帰検出 |
-| `bonjil-bench` | 変換処理の簡易ベンチマーク |
-| `bonjil-corpus-eval` | 実ディレクトリの文書を使った既存ツール比較 |
+| `atom-eval` | fixture と期待Markdownを比較する評価レポート生成 |
+| `atom-compare-baseline` | 評価レポートをしきい値と比較する回帰検出 |
+| `atom-bench` | 変換処理の簡易ベンチマーク |
+| `atom-corpus-eval` | 実ディレクトリの文書を使った既存ツール比較 |
 
-`bonjil-corpus-eval` の比較対象ツールは Docker コンテナとして実行する。
+`atom-corpus-eval` の比較対象ツールは Docker コンテナとして実行する。
 比較ツールのDockerfileとラッパー実装は `tool-runners/` に置く。
 既定のDockerイメージは次の通り。
 
-- `pandoc`: `bonjil-eval-pandoc:latest`
-- `markitdown`: `bonjil-eval-markitdown:latest`
-- `docling`: `bonjil-eval-docling:latest`
-- `pymupdf4llm`: `bonjil-eval-pymupdf4llm:latest`
-- `mammoth-js`: `bonjil-eval-mammoth-js:latest`
+- `pandoc`: `atom-eval-pandoc:latest`
+- `markitdown`: `atom-eval-markitdown:latest`
+- `docling`: `atom-eval-docling:latest`
+- `pymupdf4llm`: `atom-eval-pymupdf4llm:latest`
+- `mammoth-js`: `atom-eval-mammoth-js:latest`
 
 イメージを差し替える場合は、次の環境変数を指定する。
 
-- `BONJIL_EVAL_PANDOC_IMAGE`
-- `BONJIL_EVAL_MARKITDOWN_IMAGE`
-- `BONJIL_EVAL_DOCLING_IMAGE`
-- `BONJIL_EVAL_PYMUPDF4LLM_IMAGE`
-- `BONJIL_EVAL_MAMMOTH_JS_IMAGE`
+- `ATOM_EVAL_PANDOC_IMAGE`
+- `ATOM_EVAL_MARKITDOWN_IMAGE`
+- `ATOM_EVAL_DOCLING_IMAGE`
+- `ATOM_EVAL_PYMUPDF4LLM_IMAGE`
+- `ATOM_EVAL_MAMMOTH_JS_IMAGE`
 
 比較ツールランナーは、Markdownとreport JSONを `evaluation/outputs/` 配下に
 ファイルとして書き出す。標準出力は短い実行サマリだけに使う。
@@ -54,11 +54,11 @@ Git管理外にする。
 ## 比較ツールイメージのビルド
 
 ```bash
-docker build -t bonjil-eval-pandoc:latest evaluation/tool-runners/pandoc
-docker build -t bonjil-eval-markitdown:latest evaluation/tool-runners/markitdown
-docker build -t bonjil-eval-docling:latest evaluation/tool-runners/docling
-docker build -t bonjil-eval-pymupdf4llm:latest evaluation/tool-runners/pymupdf4llm
-docker build -t bonjil-eval-mammoth-js:latest evaluation/tool-runners/mammoth-js
+docker build -t atom-eval-pandoc:latest evaluation/tool-runners/pandoc
+docker build -t atom-eval-markitdown:latest evaluation/tool-runners/markitdown
+docker build -t atom-eval-docling:latest evaluation/tool-runners/docling
+docker build -t atom-eval-pymupdf4llm:latest evaluation/tool-runners/pymupdf4llm
+docker build -t atom-eval-mammoth-js:latest evaluation/tool-runners/mammoth-js
 ```
 
 ## 実行例
@@ -71,7 +71,7 @@ make corpus-eval
 ```
 
 ```bash
-cargo run --bin bonjil-corpus-eval -- \
+cargo run --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/report.json \
   --output-root evaluation/outputs \
@@ -83,7 +83,7 @@ cargo run --bin bonjil-corpus-eval -- \
 PDFだけを100件評価する場合は次のように実行する。
 
 ```bash
-cargo run --bin bonjil-corpus-eval -- \
+cargo run --bin atom-corpus-eval -- \
   --root evaluation/inputs \
   --out evaluation/reports/pdf-100-report.json \
   --output-root evaluation/outputs \

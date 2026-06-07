@@ -10,13 +10,13 @@
   ],
   "dictionaryDefinitions": [
     {
-      "name": "bonjil-project",
+      "name": "atom-project",
       "path": "./cspell-project-words.txt",
       "addWords": true
     }
   ],
   "dictionaries": [
-    "bonjil-project"
+    "atom-project"
   ],
   "files": [
     "**/*.md",

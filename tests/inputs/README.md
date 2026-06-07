@@ -5,7 +5,7 @@
 
 ## 用途
 
-- `bj` / `bonjil` の変換結果を手元で確認する
+- `atom` / `atom` の変換結果を手元で確認する
 - fixture化する前のPDF、DOCX、PPTX、XLSX、HTMLを一時的に置く
 - 期待Markdownや評価レポートを作る前の入力を整理する
 
@@ -20,6 +20,6 @@
 ## 例
 
 ```sh
-bj tests/inputs/sample.pdf -o target/manual/sample.md
+atom tests/inputs/sample.pdf -o target/manual/sample.md
 markdownlint-cli2 target/manual/sample.md
 ```

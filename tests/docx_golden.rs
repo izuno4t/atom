@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use bonjil::{Flavor, docx, markdown};
+use anything_to_markdown::{Flavor, docx, markdown};
 
 #[test]
 fn docx_unit_fixtures_match_expected_markdown() {

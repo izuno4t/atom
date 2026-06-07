@@ -51,9 +51,9 @@ impl OcrBackend for OcrRsBackend {
 impl OcrRsBackend {
     pub fn from_env() -> io::Result<Self> {
         Ok(Self {
-            det_model_path: required_env_path("BONJIL_OCR_RS_DET_MODEL")?,
-            rec_model_path: required_env_path("BONJIL_OCR_RS_REC_MODEL")?,
-            charset_path: required_env_path("BONJIL_OCR_RS_CHARSET")?,
+            det_model_path: required_env_path("ATOM_OCR_RS_DET_MODEL")?,
+            rec_model_path: required_env_path("ATOM_OCR_RS_REC_MODEL")?,
+            charset_path: required_env_path("ATOM_OCR_RS_CHARSET")?,
         })
     }
 }
@@ -133,7 +133,7 @@ fn temporary_png_path(page_index: usize) -> PathBuf {
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
     std::env::temp_dir().join(format!(
-        "bonjil-ocr-{}-{page_index}-{nonce}.png",
+        "atom-ocr-{}-{page_index}-{nonce}.png",
         std::process::id()
     ))
 }

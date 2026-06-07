@@ -1,5 +1,5 @@
-use bonjil::pdf::{InternalPdfTextBackend, PdfTextBackend, PdfTextExtraction};
-use bonjil::{AstNode, pdf};
+use anything_to_markdown::pdf::{InternalPdfTextBackend, PdfTextBackend, PdfTextExtraction};
+use anything_to_markdown::{AstNode, pdf};
 
 #[test]
 fn parses_text_pdf_showing_operators_without_leaking_pdf_syntax() {

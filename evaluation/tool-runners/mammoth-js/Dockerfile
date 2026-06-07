@@ -1,8 +1,8 @@
 FROM node:22-slim
 
-WORKDIR /opt/bonjil-eval
+WORKDIR /opt/atom-eval
 RUN npm install mammoth turndown
 
-COPY run.mjs /opt/bonjil-eval/run.mjs
+COPY run.mjs /opt/atom-eval/run.mjs
 
-ENTRYPOINT ["node", "/opt/bonjil-eval/run.mjs"]
+ENTRYPOINT ["node", "/opt/atom-eval/run.mjs"]

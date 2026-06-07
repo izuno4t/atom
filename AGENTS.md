@@ -2,9 +2,9 @@
 
 ## Project Structure & Module Organization
 
-`bonjil` is a Rust CLI that converts HTML, PDF, and Office documents
-into structured Markdown. Core library code lives in `src/lib.rs`; the
-CLI entry point is `src/main.rs`. Evaluation binaries are in
+atom is a Rust CLI for Anything to Markdown. It converts HTML, PDF, and
+Office documents into structured Markdown. Core library code lives in
+`src/lib.rs`; the CLI entry point is `src/main.rs`. Evaluation binaries are in
 `evaluation/bin/`, with reports and corpora under `evaluation/`. Tests
 live in `tests/`; fixtures and reviewed expected Markdown are under
 `tests/fixtures/`. Requirements and work tracking are in `docs/`.
@@ -19,6 +19,17 @@ live in `tests/`; fixtures and reviewed expected Markdown are under
 - `make clippy`: run Rust static checks with warnings denied.
 - `make verify`: run fmt, clippy, tests, regression, lint, and spell check.
 - `just test` / `just eval`: shorter common workflows.
+
+## Development Workflow
+
+For improvement work, use this loop:
+
+1. Run `just test` to check the current test state.
+2. Run `just eval` to inspect conversion report JSON.
+3. Triage failing fixtures or warnings to the input parser, AST, writer, or
+   evaluation function.
+4. Apply the smallest correction that addresses the cause.
+5. Run `just ci` to confirm there is no regression.
 
 ## Coding Style & Naming Conventions
 
@@ -67,7 +78,7 @@ changes.
 
 By default, do not send documents to external LLM or OCR services. Cloud
 LLM use must be explicit with `--allow-external-send`. Use
-`bonjil.toml.example` as the configuration reference, and avoid
+`atom.config.toml.example` as the configuration reference, and avoid
 committing private documents, credentials, or proprietary corpora.
 If external sending is added, explicitly document the destination, sent
 content, and consent setting.
@@ -84,9 +95,19 @@ repository owner.
 ## Parser Implementation Policy
 
 PDF, Office, image, and OCR-related format support must assume that the
-installed `bonjil` / `bj` binary provides the basic reader capability.
+installed `atom` binary provides the basic reader capability.
 Do not design normal document conversion so that users must separately
 install ad hoc external CLI tools.
+
+Current implementation boundaries:
+
+- DOCX has a minimal implementation that reads `word/document.xml` through
+  `unzip`.
+- PDF currently uses heuristic text extraction only.
+- PPTX and XLSX have entry points and warnings implemented; structural
+  conversion is planned for later expansion.
+- OCR and LLM boundaries are implemented, and external calls are handled only
+  when explicitly configured.
 
 Prefer Rust crates that can be compiled into the binary when they are
 sufficient. When existing Rust crates are not sufficient for quality or

@@ -2,8 +2,8 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use bonjil::llm::{self, LlmProvider, LlmRequest, LlmResponse};
-use bonjil::{AstNode, LlmBackend};
+use anything_to_markdown::llm::{self, LlmProvider, LlmRequest, LlmResponse};
+use anything_to_markdown::{AstNode, LlmBackend};
 
 struct StubLlm;
 

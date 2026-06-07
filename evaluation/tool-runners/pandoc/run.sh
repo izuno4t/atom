@@ -2,7 +2,7 @@
 set -eu
 
 if [ "$#" -ne 3 ]; then
-  echo "usage: bonjil-eval-pandoc <input> <output-md> <report-json>" >&2
+  echo "usage: atom-eval-pandoc <input> <output-md> <report-json>" >&2
   exit 64
 fi
 

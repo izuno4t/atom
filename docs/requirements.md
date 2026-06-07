@@ -141,10 +141,10 @@ PDF を高精度で Markdown 化する最新世代。
 入力形式に依存しない単一のコマンド・API で操作できること。
 
 ```bash
-bonjil input.docx -o output.md
-bonjil input.pdf  -o output.md
-bonjil input.pptx -o output.md
-bonjil input.html -o output.md
+atom input.docx -o output.md
+atom input.pdf  -o output.md
+atom input.pptx -o output.md
+atom input.html -o output.md
 ```
 
 #### F2. 対応フォーマット
@@ -166,8 +166,8 @@ bonjil input.html -o output.md
 - HedgeDoc / HackMD スライド形式
 
 ```bash
-bonjil input.pdf --flavor gfm -o output.md
-bonjil input.docx --flavor markdownlint -o output.md
+atom input.pdf --flavor gfm -o output.md
+atom input.docx --flavor markdownlint -o output.md
 ```
 
 #### F4. テーブル忠実度
@@ -222,9 +222,9 @@ bonjil input.docx --flavor markdownlint -o output.md
 - OCR 利用の有無・エンジン名をログに明示
 
 ```bash
-bonjil scan.pdf --ocr auto -o out.md        # 自動選択
-bonjil scan.pdf --ocr ndlocr-lite -o out.md # 明示指定
-bonjil kuzushiji.pdf --ocr ndl-koten -o out.md
+atom scan.pdf --ocr auto -o out.md        # 自動選択
+atom scan.pdf --ocr ndlocr-lite -o out.md # 明示指定
+atom kuzushiji.pdf --ocr ndl-koten -o out.md
 ```
 
 #### F7. 構造化出力 (人間可読性ファースト)
@@ -265,10 +265,10 @@ LLM の用途:
 
 ```bash
 # 再構造化のみ
-bonjil input.pdf --llm claude-opus --restructure -o out.md
+atom input.pdf --llm claude-opus --restructure -o out.md
 
 # 翻訳付き
-bonjil input.pdf --llm claude-opus --translate ja -o out.md
+atom input.pdf --llm claude-opus --translate ja -o out.md
 ```
 
 サポートする LLM バックエンド:
@@ -300,8 +300,8 @@ bonjil input.pdf --llm claude-opus --translate ja -o out.md
 - **HedgeDoc スライド形式** — 既存ワークフローへの組み込み
 
 ```bash
-bonjil input.docx --format mdx  -o out.mdx
-bonjil input.docx --format html -o out.html
+atom input.docx --format mdx  -o out.mdx
+atom input.docx --format html -o out.html
 ```
 
 優先度は低いが、Markdown Writer と並列に MDX Writer / HTML
@@ -318,7 +318,7 @@ Writer を実装することで達成する。AST が共通なので追加コス
 - 変換時の処理時間・使用機能のレポート
 
 ```bash
-bonjil input.pdf -o out.md --report report.json
+atom input.pdf -o out.md --report report.json
 ```
 
 ### 非機能要件
@@ -349,7 +349,7 @@ bonjil input.pdf -o out.md --report report.json
 
 - フォーマットごとの変換ロジックをプラグインで差し替え可能
 - 出力後処理 (filter) を WASM プラグインで書ける
-- 設定ファイル (`bonjil.toml` 等) でプロジェクト単位の方言固定
+- 設定ファイル (`atom.config.toml` 等) でプロジェクト単位の方言固定
 
 #### N5. 品質保証
 
@@ -600,7 +600,7 @@ Pandoc AST に類似した中間表現を持ち、入力パーサーと出力ラ
 #### C1. CLI
 
 ```bash
-bonjil [INPUT] [OPTIONS]
+atom [INPUT] [OPTIONS]
 
 OPTIONS:
   -o, --output <PATH>         出力先 (省略時は stdout)
@@ -624,7 +624,7 @@ CLIと同じことが Rust / Python バインディング経由で可能。
 ストリーミング API を提供し、巨大ファイル対応とする。
 
 ```rust
-let result = bonjil::Converter::new()
+let result = anything_to_markdown::Converter::new()
     .flavor(Flavor::Gfm)
     .extract_media("./media")
     .convert_file("input.docx")?;

@@ -6,14 +6,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
-use bonjil::{ConversionOptions, Converter, Flavor};
+use anything_to_markdown::{ConversionOptions, Converter, Flavor};
 
 const SUPPORTED_EXTENSIONS: &[&str] =
     &["pdf", "html", "htm", "docx", "pptx", "xlsx", "epub", "txt"];
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("bonjil-corpus-eval: {error}");
+        eprintln!("atom-corpus-eval: {error}");
         std::process::exit(1);
     }
 }
@@ -179,7 +179,7 @@ struct Summary {
     by_extension: BTreeMap<String, usize>,
     tool_success: BTreeMap<String, usize>,
     tool_average_score: BTreeMap<String, f64>,
-    bonjil_wins: usize,
+    atom_wins: usize,
     superiority_claim: String,
 }
 
@@ -242,14 +242,14 @@ fn evaluate_file(
     let extension = extension(input).unwrap_or_else(|| "unknown".to_string());
     if fs::metadata(input)?.len() > max_bytes {
         let mut results = vec![skipped_tool_result(
-            "bonjil",
+            "atom",
             "too_large",
             "file exceeds evaluator max bytes",
         )];
         results.extend(
             tools
                 .iter()
-                .filter(|tool| tool.as_str() != "bonjil")
+                .filter(|tool| tool.as_str() != "atom")
                 .map(|tool| {
                     skipped_tool_result(tool, "too_large", "file exceeds evaluator max bytes")
                 }),
@@ -262,9 +262,9 @@ fn evaluate_file(
             judgment: "excluded: too_large".to_string(),
         });
     }
-    let mut results = vec![run_bonjil(input, output_root)?];
+    let mut results = vec![run_atom(input, output_root)?];
     for tool in tools {
-        if tool == "bonjil" {
+        if tool == "atom" {
             continue;
         }
         results.push(run_external_tool(tool, input, output_root, timeout_ms));
@@ -286,8 +286,8 @@ fn evaluate_file(
         < 2
     {
         "not_proven: fewer than two tools succeeded".to_string()
-    } else if winner.as_deref() == Some("bonjil") {
-        "bonjil_best_by_heuristic_metrics".to_string()
+    } else if winner.as_deref() == Some("atom") {
+        "atom_best_by_heuristic_metrics".to_string()
     } else {
         "baseline_best_or_tied_by_heuristic_metrics".to_string()
     };
@@ -311,9 +311,9 @@ fn skipped_tool_result(tool: &str, status: &str, error: &str) -> ToolResult {
     }
 }
 
-fn run_bonjil(input: &Path, output_root: &Path) -> io::Result<ToolResult> {
+fn run_atom(input: &Path, output_root: &Path) -> io::Result<ToolResult> {
     let started = Instant::now();
-    let output_path = output_path(output_root, "bonjil", input);
+    let output_path = output_path(output_root, "atom", input);
     let result = Converter::new()
         .with_options(ConversionOptions {
             flavor: Flavor::Gfm,
@@ -325,12 +325,11 @@ fn run_bonjil(input: &Path, output_root: &Path) -> io::Result<ToolResult> {
             write_output(&output_path, &result.markdown)?;
             let unsupported = result.markdown.contains("Unsupported input format:");
             Ok(ToolResult {
-                tool: "bonjil".to_string(),
+                tool: "atom".to_string(),
                 status: if unsupported { "unsupported" } else { "ok" }.to_string(),
                 elapsed_ms: started.elapsed().as_millis(),
                 output_path: Some(output_path),
-                error: unsupported
-                    .then(|| "format is not supported by bonjil pipeline".to_string()),
+                error: unsupported.then(|| "format is not supported by atom pipeline".to_string()),
                 metrics: if unsupported {
                     MarkdownMetrics::default()
                 } else {
@@ -339,7 +338,7 @@ fn run_bonjil(input: &Path, output_root: &Path) -> io::Result<ToolResult> {
             })
         }
         Err(error) => Ok(ToolResult {
-            tool: "bonjil".to_string(),
+            tool: "atom".to_string(),
             status: "error".to_string(),
             elapsed_ms: started.elapsed().as_millis(),
             output_path: None,
@@ -453,16 +452,16 @@ fn run_external_tool_in_docker(
 
 fn docker_image(tool: &str) -> String {
     match tool {
-        "pandoc" => env::var("BONJIL_EVAL_PANDOC_IMAGE")
-            .unwrap_or_else(|_| "bonjil-eval-pandoc:latest".to_string()),
-        "markitdown" => env::var("BONJIL_EVAL_MARKITDOWN_IMAGE")
-            .unwrap_or_else(|_| "bonjil-eval-markitdown:latest".to_string()),
-        "docling" => env::var("BONJIL_EVAL_DOCLING_IMAGE")
-            .unwrap_or_else(|_| "bonjil-eval-docling:latest".to_string()),
-        "pymupdf4llm" => env::var("BONJIL_EVAL_PYMUPDF4LLM_IMAGE")
-            .unwrap_or_else(|_| "bonjil-eval-pymupdf4llm:latest".to_string()),
-        "mammoth-js" => env::var("BONJIL_EVAL_MAMMOTH_JS_IMAGE")
-            .unwrap_or_else(|_| "bonjil-eval-mammoth-js:latest".to_string()),
+        "pandoc" => env::var("ATOM_EVAL_PANDOC_IMAGE")
+            .unwrap_or_else(|_| "atom-eval-pandoc:latest".to_string()),
+        "markitdown" => env::var("ATOM_EVAL_MARKITDOWN_IMAGE")
+            .unwrap_or_else(|_| "atom-eval-markitdown:latest".to_string()),
+        "docling" => env::var("ATOM_EVAL_DOCLING_IMAGE")
+            .unwrap_or_else(|_| "atom-eval-docling:latest".to_string()),
+        "pymupdf4llm" => env::var("ATOM_EVAL_PYMUPDF4LLM_IMAGE")
+            .unwrap_or_else(|_| "atom-eval-pymupdf4llm:latest".to_string()),
+        "mammoth-js" => env::var("ATOM_EVAL_MAMMOTH_JS_IMAGE")
+            .unwrap_or_else(|_| "atom-eval-mammoth-js:latest".to_string()),
         _ => tool.to_string(),
     }
 }
@@ -517,11 +516,11 @@ fn summarize(cases: &[CaseResult]) -> Summary {
     let mut by_extension = BTreeMap::new();
     let mut tool_success = BTreeMap::new();
     let mut tool_scores = BTreeMap::<String, (f64, usize)>::new();
-    let mut bonjil_wins = 0;
+    let mut atom_wins = 0;
     for case in cases {
         *by_extension.entry(case.extension.clone()).or_insert(0) += 1;
-        if case.winner.as_deref() == Some("bonjil") {
-            bonjil_wins += 1;
+        if case.winner.as_deref() == Some("atom") {
+            atom_wins += 1;
         }
         for result in &case.results {
             if result.status == "ok" {
@@ -541,7 +540,7 @@ fn summarize(cases: &[CaseResult]) -> Summary {
         by_extension,
         tool_success,
         tool_average_score,
-        bonjil_wins,
+        atom_wins,
         superiority_claim: "not_proven_without_human_review_or_ground_truth".to_string(),
     }
 }
@@ -566,7 +565,7 @@ fn render_review_index(summary: &Summary, cases: &[CaseResult]) -> String {
     output.push_str("# Corpus Evaluation Review Index\n\n");
     output.push_str("## Summary\n\n");
     output.push_str(&format!("- Total files: {}\n", summary.total_files));
-    output.push_str(&format!("- Bonjil wins: {}\n", summary.bonjil_wins));
+    output.push_str(&format!("- atom wins: {}\n", summary.atom_wins));
     output.push_str(&format!(
         "- Superiority claim: `{}`\n\n",
         summary.superiority_claim
@@ -604,7 +603,7 @@ fn render_summary(summary: &Summary) -> String {
             "\"by_extension\":{},",
             "\"tool_success\":{},",
             "\"tool_average_score\":{},",
-            "\"bonjil_wins\":{},",
+            "\"atom_wins\":{},",
             "\"superiority_claim\":\"{}\"",
             "}}"
         ),
@@ -612,7 +611,7 @@ fn render_summary(summary: &Summary) -> String {
         render_usize_map(&summary.by_extension),
         render_usize_map(&summary.tool_success),
         render_f64_map(&summary.tool_average_score),
-        summary.bonjil_wins,
+        summary.atom_wins,
         summary.superiority_claim
     )
 }

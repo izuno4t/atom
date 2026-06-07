@@ -4,11 +4,11 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use bonjil::{ConversionOptions, convert_bytes};
+use anything_to_markdown::{ConversionOptions, convert_bytes};
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("bonjil-bench: {error}");
+        eprintln!("atom-bench: {error}");
         std::process::exit(1);
     }
 }

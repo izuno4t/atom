@@ -3,13 +3,13 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use bonjil::{
+use anything_to_markdown::{
     ConversionOptions, Converter, load_config, parse_flavor, parse_format, parse_llm, parse_ocr,
 };
 
 fn main() {
     if let Err(error) = run() {
-        eprintln!("bonjil: {error}");
+        eprintln!("atom: {error}");
         std::process::exit(1);
     }
 }
@@ -152,7 +152,7 @@ fn media_dir_for_output(output_path: &std::path::Path) -> PathBuf {
 fn print_help() {
     println!(
         "\
-bonjil [INPUT] [OPTIONS]
+atom [INPUT] [OPTIONS]
 
 Options:
   -o, --output <PATH>         Output path, stdout when omitted
@@ -166,7 +166,7 @@ Options:
   --translate <LANG>          Translate with selected LLM
   --report <PATH>             Write conversion report JSON
   --strict                    Treat warnings as errors
-  --config <PATH>             Load bonjil.toml-style config
+  --config <PATH>             Load atom.config.toml-style config
   --allow-external-send       Allow selected cloud LLM backend to receive input
 "
     );

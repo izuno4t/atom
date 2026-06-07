@@ -1,7 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use bonjil::media::{self, VectorRasterizer};
+use anything_to_markdown::media::{self, VectorRasterizer};
 
 struct StubRasterizer;
 

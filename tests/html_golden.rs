@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use bonjil::{Flavor, html, markdown};
+use anything_to_markdown::{Flavor, html, markdown};
 
 #[test]
 fn html_unit_fixtures_match_expected_markdown() {
