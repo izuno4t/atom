@@ -108,10 +108,12 @@ name = "anything-to-markdown"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
+ "flate2",
  "hayro",
  "hayro-cmap",
  "image",
  "lopdf",
+ "md-5",
  "ocr-rs",
  "pdf-extract",
  "zip",

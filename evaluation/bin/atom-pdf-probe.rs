@@ -10,6 +10,25 @@ fn main() {
     let started = Instant::now();
     let document = lopdf::Document::load_mem(&bytes).expect("load pdf");
     let load_elapsed = started.elapsed();
+    println!(
+        "objects={}\tpages={}",
+        document.objects.len(),
+        document.get_pages().len()
+    );
+    let mut plain_document = document.clone();
+    plain_document.trailer.remove(b"Encrypt");
+    let mut readable_pages = 0usize;
+    let mut readable_bytes = 0usize;
+    for object_id in plain_document.get_pages().values() {
+        if let Ok(content) = plain_document.get_page_content(*object_id) {
+            readable_pages += 1;
+            readable_bytes += content.len();
+        }
+    }
+    println!("raw-pages={readable_pages}\traw-content-bytes={readable_bytes}");
+    if env::var_os("ATOM_PDF_PROBE_RAW_ONLY").is_some() {
+        return;
+    }
 
     let mut text = String::new();
     let extract_started = Instant::now();
