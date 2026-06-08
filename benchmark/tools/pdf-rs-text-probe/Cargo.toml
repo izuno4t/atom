@@ -1,0 +1,10 @@
+[package]
+name = "pdf-rs-text-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+pdf = "0.10.0"

@@ -122,6 +122,7 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 | TASK-078 | ⏳ | 実装するLLM整形結果の検証と差分保存 | TASK-077 |
 | TASK-079 | ⏳ | 追記する変換本体のLLM実行手順 | TASK-078 |
 | TASK-080 | ⏳ | 検証する画像資料のLLM補助変換方針 | TASK-079 |
+| TASK-081 | 🚧 | 実装するatomネイティブPDF抽出器とレイアウト復元 | TASK-054 |
 
 ## タスク詳細（補足が必要な場合のみ）
 
@@ -136,6 +137,18 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
 - PDFのページ単位OCR fallbackは、Rust内のPDFレンダリングでページ画像を生成し、
   OCR境界へ渡す。`ocr-rs` はモデルファイルを同梱せず、明示的な環境変数で
   detection/recognition/charsetの各モデルを指定する。
+- PDF抽出器はページ数やファイルサイズでバックエンド分岐しない。PDFの難しさは
+  文書構造に依存するため、atom側の固定順バックエンドで失敗時に次へ進める。
+- 2026-06-09のreleaseビルド検証では、MarkItDown成功368件すべてで
+  atomが成功し、全件でMarkItDownより高速だった。詳細は
+  `benchmark/reports/atom-release-markitdown-ok.tsv` に記録する。
+- 2026-06-09の追加検証では、MarkItDown成功かつ旧atom非成功の34件を
+  現行releaseビルドで再実行し、34件すべてで成功、34件すべてで
+  MarkItDownより高速だった。詳細は
+  `docs/markitdown-old-atom-failed-release-check.md`
+  に記録する。
+- `src` 配下では、複数の責務を巨大な単一ファイルへ凝縮する実装を禁止する。
+  抽出、復元、正規化、出力、I/O、report組立は責務単位のmoduleへ分ける。
 
 ### TASK-001
 

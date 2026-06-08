@@ -503,7 +503,7 @@ def append_report(
 
     section = [
         "",
-        f"## MarkItDown Output Inspection - {now}",
+        f"## {tool_name_from_path(inventory)} Output Inspection - {now}",
         "",
         "### Scope",
         "",
@@ -550,6 +550,13 @@ def append_report(
     section.append("")
     with report.open("a", encoding="utf-8") as file:
         file.write("\n".join(section))
+
+
+def tool_name_from_path(path: Path) -> str:
+    name = path.stem
+    if name.endswith("-inventory"):
+        name = name[: -len("-inventory")]
+    return name or "conversion"
 
 
 def count_values(rows: list[dict[str, str]], key: str) -> dict[str, int]:

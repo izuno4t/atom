@@ -312,7 +312,7 @@ fn pdf_conversion_report_records_backend_and_ocr_requirement() {
             .report
             .metadata
             .iter()
-            .any(|(key, value)| { key == "pdf_backend" && value == "pdf-extract" })
+            .any(|(key, value)| { key == "pdf_backend" && value == "pdf-oxide-form-words" })
     );
     assert!(
         result
@@ -326,7 +326,7 @@ fn pdf_conversion_report_records_backend_and_ocr_requirement() {
             .report
             .features
             .iter()
-            .any(|feature| { feature == "pdf_backend:pdf-extract" })
+            .any(|feature| { feature == "pdf_backend:pdf-oxide-form-words" })
     );
 }
 

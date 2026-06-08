@@ -31,4 +31,6 @@ lopdf = { version = "0.38.0", default-features = false }
 md-5 = "0.10"
 ocr-rs = "2.2.2"
 pdf-extract = "0.10.0"
+pdf = "0.10.0"
+pdf_oxide = "0.3.61"
 zip = "8.6.0"

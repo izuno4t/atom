@@ -1,6 +1,9 @@
 mod converter;
 mod input_detection;
 mod media_refs;
+mod ooxml_conversion;
+mod ooxml_package;
+mod pdf_conversion;
 mod report_features;
 
 pub use converter::{Converter, convert_bytes, convert_reader};
