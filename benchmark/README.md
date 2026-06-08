@@ -3,15 +3,23 @@
 `benchmark/` は、MarkItDown、Pandoc、Docling など外部ツールとの比較や
 事前棚卸しを行う場所です。
 
-`evaluation/` は atom 本体の評価に使い、外部ツール比較のrunnerやscriptは
-ここに置きます。
+`evaluation/` は atom 本体のfixture評価と回帰検出に使います。
+外部ツール比較のrunnerやscriptは `benchmark/` に置きます。
 
 ## Layout
 
 | Path | Purpose |
 | ---- | ---- |
+| `methods/` | 比較手法、改善サイクル、golden reviewの方針 |
 | `scripts/` | 比較や棚卸し用の実行スクリプト |
 | `tools/` | 外部ツールrunnerとDockerfile |
+
+## Method Documents
+
+- [Benchmark Method](methods/benchmark.md)
+- [Golden Review](methods/golden-review.md)
+- [評価から再評価までの改善サイクル](methods/improvement-cycle.md)
+- [ディレクトリ別評価実行計画](methods/directory-evaluation-plan.md)
 
 ## MarkItDown Inventory
 

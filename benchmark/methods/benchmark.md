@@ -34,5 +34,5 @@
 
 ## 出力確認
 
-評価後は `evaluation/outputs/` 配下を直接開いて、ツール別のMarkdownを比較する。
+評価後は `benchmark/outputs/` 配下を直接開いて、ツール別のMarkdownを比較する。
 JSONレポートだけで完了判定しない。
