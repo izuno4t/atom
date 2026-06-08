@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import multiprocessing
 import tomllib
 import time
 from pathlib import Path
+from queue import Empty
 
 
 def main() -> int:
@@ -14,6 +16,8 @@ def main() -> int:
     parser.add_argument("--input-dir")
     parser.add_argument("--out")
     parser.add_argument("--output-root")
+    parser.add_argument("--per-file-timeout-seconds", type=int)
+    parser.add_argument("--retry-statuses")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -31,26 +35,41 @@ def main() -> int:
             "benchmark/outputs/markitdown",
         )
     )
+    per_file_timeout_seconds = args.per_file_timeout_seconds
+    if per_file_timeout_seconds is None:
+        per_file_timeout_seconds = int(config.get("per_file_timeout_seconds", "180"))
+    retry_statuses = parse_statuses(args.retry_statuses or config.get("retry_statuses", ""))
     if not input_dir.is_dir():
         raise NotADirectoryError(f"input_dir is not a directory: {input_dir}")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    from markitdown import MarkItDown
-
-    converter = MarkItDown()
     files = sorted(path for path in input_dir.iterdir() if path.is_file())
-    with out.open("w", encoding="utf-8") as file:
-        file.write("path\tstatus\telapsed_ms\tchars\tsha256\terror\n")
-        for index, path in enumerate(files, start=1):
-            file.write(inventory_file(converter, path, output_root) + "\n")
+    completed_paths = prepare_existing_inventory(out, retry_statuses)
+    pending_files = [
+        (index, path)
+        for index, path in enumerate(files, start=1)
+        if tsv(path) not in completed_paths
+    ]
+    print(
+        f"resume: {len(completed_paths)} recorded, {len(pending_files)} pending",
+        flush=True,
+    )
+
+    write_header = not out.exists()
+    with out.open("a", encoding="utf-8") as file:
+        if write_header:
+            file.write("path\tstatus\telapsed_ms\tchars\tsha256\terror\n")
+        for index, path in pending_files:
+            file.write(
+                inventory_file_with_timeout(path, output_root, per_file_timeout_seconds) + "\n"
+            )
             file.flush()
             print(f"{index}/{len(files)} {path}", flush=True)
 
     print(out)
     return 0
-
 
 def load_config(config_arg: str | None) -> dict[str, str]:
     config_path = Path(config_arg) if config_arg else Path("benchmark/benchmark.config.toml")
@@ -72,7 +91,74 @@ def value_from_args_or_config(
     return value
 
 
-def inventory_file(converter: MarkItDown, path: Path, output_root: Path) -> str:
+def parse_statuses(value: str) -> set[str]:
+    return {status.strip() for status in value.split(",") if status.strip()}
+
+
+def prepare_existing_inventory(out: Path, retry_statuses: set[str]) -> set[str]:
+    if not out.exists():
+        return set()
+    lines = out.read_text(encoding="utf-8").splitlines()
+    if not retry_statuses:
+        return completed_paths(lines)
+
+    retained = [lines[0]] if lines else ["path\tstatus\telapsed_ms\tchars\tsha256\terror"]
+    for line in lines[1:]:
+        columns = line.split("\t")
+        if len(columns) < 2 or columns[1] in retry_statuses:
+            continue
+        retained.append(line)
+    out.write_text("\n".join(retained) + "\n", encoding="utf-8")
+    return completed_paths(retained)
+
+
+def completed_paths(lines: list[str]) -> set[str]:
+    return {line.split("\t", 1)[0] for line in lines[1:] if line.strip() and "\t" in line}
+
+
+def inventory_file_with_timeout(path: Path, output_root: Path, timeout_seconds: int) -> str:
+    started = time.monotonic()
+    queue: multiprocessing.Queue[str] = multiprocessing.Queue(maxsize=1)
+    process = multiprocessing.Process(
+        target=inventory_file_worker,
+        args=(str(path), str(output_root), queue),
+    )
+    process.start()
+    process.join(timeout_seconds)
+    if process.is_alive():
+        process.terminate()
+        process.join(5)
+        if process.is_alive():
+            process.kill()
+            process.join()
+        return row(
+            path,
+            "timeout",
+            started,
+            0,
+            "",
+            f"MarkItDown conversion exceeded {timeout_seconds} seconds",
+        )
+    try:
+        return queue.get_nowait()
+    except Empty:
+        return row(
+            path,
+            "error",
+            started,
+            0,
+            "",
+            f"worker exited without result; exitcode={process.exitcode}",
+        )
+
+
+def inventory_file_worker(path_value: str, output_root_value: str, queue: multiprocessing.Queue[str]) -> None:
+    from markitdown import MarkItDown
+
+    queue.put(inventory_file(MarkItDown(), Path(path_value), Path(output_root_value)))
+
+
+def inventory_file(converter: object, path: Path, output_root: Path) -> str:
     started = time.monotonic()
     try:
         result = converter.convert(str(path))

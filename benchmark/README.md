@@ -18,6 +18,10 @@
 指定したディレクトリ直下の通常ファイルをMarkItDownでMarkdown化し、TSVで
 棚卸しします。サブディレクトリは辿りません。MarkItDownで処理できない
 ファイルも `error` として記録します。
+既存のTSVがある場合は記録済みのパスをスキップして再開します。
+`per_file_timeout_seconds` を超えたファイルは `timeout` として記録します。
+`retry_statuses` に `error,timeout` のように指定すると、該当ステータスだけ
+既存TSVから外して再処理します。
 
 設定は `benchmark/benchmark.config.toml` に置きます。この実ファイルは
 Git管理外です。
@@ -25,7 +29,9 @@ Git管理外です。
 ```bash
 cp benchmark/benchmark.config.toml.example benchmark/benchmark.config.toml
 uv venv benchmark/.venv
-uv pip install --python benchmark/.venv/bin/python -r benchmark/requirements-markitdown.txt
+UV_CACHE_DIR=benchmark/.uv-cache uv pip install --prerelease=allow \
+  --python benchmark/.venv/bin/python \
+  -r benchmark/requirements-markitdown.txt
 
 benchmark/.venv/bin/python benchmark/scripts/markitdown_inventory.py
 ```
