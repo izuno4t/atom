@@ -49,3 +49,21 @@ benchmark/.venv/bin/python benchmark/scripts/inspect_markitdown_outputs.py
 
 検査結果は `benchmark/reports/markitdown-inspection.tsv` に書き出し、
 概要を `benchmark/reports/markitdown-report.md` に追記します。
+
+## atom Inventory and Comparison
+
+同じ入力ディレクトリ直下の通常ファイルをatomでMarkdown化し、MarkItDownと
+同じ検査基準で確認します。
+
+```bash
+cargo build
+benchmark/.venv/bin/python benchmark/scripts/atom_inventory.py
+benchmark/.venv/bin/python benchmark/scripts/inspect_markitdown_outputs.py \
+  --inventory benchmark/reports/atom-inventory.tsv \
+  --markdown-root benchmark/outputs/atom \
+  --out benchmark/reports/atom-inspection.tsv \
+  --report benchmark/reports/atom-report.md
+benchmark/.venv/bin/python benchmark/scripts/compare_atom_markitdown.py
+```
+
+比較結果は `benchmark/reports/atom-vs-markitdown-report.md` に書き出します。
