@@ -37,3 +37,15 @@ benchmark/.venv/bin/python benchmark/scripts/markitdown_inventory.py
 ```
 
 TSVの列は `path`, `status`, `elapsed_ms`, `chars`, `sha256`, `error` です。
+
+## MarkItDown Output Inspection
+
+MarkItDownが生成したMarkdownを元ファイルから抽出したテキストと比較し、
+言語一致と大きな欠落・改変の疑いを検査します。
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/inspect_markitdown_outputs.py
+```
+
+検査結果は `benchmark/reports/markitdown-inspection.tsv` に書き出し、
+概要を `benchmark/reports/markitdown-report.md` に追記します。

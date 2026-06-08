@@ -3,3 +3,6 @@ inventory_out = "benchmark/reports/markitdown-inventory.tsv"
 markdown_output_root = "benchmark/outputs/markitdown"
 per_file_timeout_seconds = 180
 retry_statuses = ""
+inspection_out = "benchmark/reports/markitdown-inspection.tsv"
+inspection_report = "benchmark/reports/markitdown-report.md"
+inspection_source_timeout_seconds = 120
