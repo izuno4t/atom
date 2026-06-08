@@ -73,6 +73,10 @@ fn run() -> io::Result<()> {
                 print_help();
                 return Ok(());
             }
+            "-V" | "--version" => {
+                print_version();
+                return Ok(());
+            }
             value if value.starts_with('-') => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
@@ -168,6 +172,11 @@ Options:
   --strict                    Treat warnings as errors
   --config <PATH>             Load atom.config.toml-style config
   --allow-external-send       Allow selected cloud LLM backend to receive input
+  -V, --version               Print version
 "
     );
+}
+
+fn print_version() {
+    println!("atom {}", env!("CARGO_PKG_VERSION"));
 }
