@@ -19,16 +19,21 @@ pub fn diagnose_no_extractable_text(bytes: &[u8]) -> PdfNoTextDiagnosis {
     let lossy = String::from_utf8_lossy(bytes);
     let has_image = contains_pdf_name(&lossy, "/Subtype", "Image")
         || lossy.contains("/Subtype/Image")
+        || lossy.contains("/Subtype /Image")
         || lossy.contains("/ImageB")
         || lossy.contains("/ImageC")
         || lossy.contains("/ImageI");
-    let has_font = lossy.contains("/Font");
-    let has_text_procset = lossy.contains("/PDF/Text") || lossy.contains("/PDF /Text");
+    let has_font = contains_pdf_name(&lossy, "/Type", "Font")
+        || lossy.contains("/Type/Font")
+        || lossy.contains("/BaseFont")
+        || lossy.contains("/FontDescriptor")
+        || lossy.contains("/Subtype/Type0")
+        || lossy.contains("/Subtype /Type0");
     let has_to_unicode = lossy.contains("/ToUnicode");
 
-    if has_image && !has_font && !has_text_procset {
+    if has_image && !has_font {
         PdfNoTextDiagnosis::ImageOnly
-    } else if (has_font || has_text_procset) && (!has_to_unicode || has_unmapped_cid_fonts(bytes)) {
+    } else if has_font && (!has_to_unicode || has_unmapped_cid_fonts(bytes)) {
         PdfNoTextDiagnosis::MissingUnicodeMaps
     } else {
         PdfNoTextDiagnosis::Unknown
@@ -36,9 +41,12 @@ pub fn diagnose_no_extractable_text(bytes: &[u8]) -> PdfNoTextDiagnosis {
 }
 
 fn contains_pdf_name(input: &str, key: &str, value: &str) -> bool {
-    input
-        .match_indices(key)
-        .any(|(index, _)| input[index + key.len()..].trim_start().starts_with(value))
+    input.match_indices(key).any(|(index, _)| {
+        input[index + key.len()..]
+            .trim_start()
+            .trim_start_matches('/')
+            .starts_with(value)
+    })
 }
 
 pub(super) fn has_unmapped_cid_fonts(bytes: &[u8]) -> bool {

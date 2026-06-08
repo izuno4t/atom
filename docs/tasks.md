@@ -147,6 +147,12 @@ TASK-044以降は、要件文の表現をそのまま作業名へ写すのでは
   MarkItDownより高速だった。詳細は
   `docs/markitdown-old-atom-failed-release-check.md`
   に記録する。
+- 2026-06-09の追加検証では、MarkItDown非成功のPDF/Office文書16件を
+  現行releaseビルドで再実行した。16件はすべてPDFで、15件は
+  抽出可能なテキスト層がないOCR対象、1件はStandard security handlerに
+  よる権限制限の可能性として分類した。詳細は
+  `docs/markitdown-failed-pdf-office-release-check.md`
+  に記録する。
 - `src` 配下では、複数の責務を巨大な単一ファイルへ凝縮する実装を禁止する。
   抽出、復元、正規化、出力、I/O、report組立は責務単位のmoduleへ分ける。
 

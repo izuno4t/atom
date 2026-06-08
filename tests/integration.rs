@@ -5,6 +5,7 @@ use anything_to_markdown::{
 use std::fs;
 use std::io::{Cursor, Write};
 use std::path::Path;
+use std::process::Command;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
 #[test]
@@ -24,6 +25,21 @@ fn converts_ast_to_commonmark() {
     let actual = markdown::write_markdown(&ast, Flavor::CommonMark);
 
     assert_eq!(actual, "# Title\n\nHello world\n\n- item\n");
+}
+
+#[test]
+fn cli_prints_version_without_input() {
+    let output = Command::new(env!("CARGO_BIN_EXE_atom"))
+        .arg("--version")
+        .output()
+        .expect("atom binary should run");
+
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        format!("atom {}", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(output.stderr.is_empty());
 }
 
 #[test]

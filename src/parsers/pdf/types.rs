@@ -53,7 +53,7 @@ impl PdfNoTextDiagnosis {
     pub fn message(self) -> &'static str {
         match self {
             Self::ImageOnly => {
-                "PDF contains page images but no extractable text layer. OCR is required."
+                "PDF contains page images or outlined/vector text but no extractable text layer. OCR is required."
             }
             Self::MissingUnicodeMaps => {
                 "PDF text uses embedded fonts without Unicode maps, so glyphs cannot be converted back to text."

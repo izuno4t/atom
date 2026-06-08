@@ -106,6 +106,14 @@ atom 側の責務に置く。
 読める状態だった。`designingfortheordinary-220126124909.pdf` に
 残っていた2件のCID placeholderはAdobe-Japan1補完で解消した。
 
+MarkItDownが非成功だったPDF/Office文書16件も同じreleaseビルドで
+再確認した。対象16件はすべてPDFで、Office文書は含まれていなかった。
+15件はページ画像またはアウトライン化された文字のみで抽出可能な
+テキスト層がなく、OCRが必要だった。1件はStandard security handlerに
+よる権限制限の可能性があった。詳細は
+`docs/markitdown-failed-pdf-office-release-check.md`
+に保存した。
+
 #### M4: LLM統合
 
 | 項目 | スコープ |

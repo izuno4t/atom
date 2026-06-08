@@ -330,6 +330,29 @@ fn pdf_no_text_diagnosis_detects_image_only_pdf() {
 }
 
 #[test]
+fn pdf_no_text_diagnosis_detects_image_pdf_even_with_text_procset() {
+    let diagnosis = pdf::diagnose_no_extractable_text(
+        b"%PDF-1.7\n<</ProcSet[/PDF/Text/ImageB]/XObject<</Im0 2 0 R>>>>\n<</Subtype/Image/Type/XObject>>",
+    );
+
+    assert_eq!(diagnosis, pdf::PdfNoTextDiagnosis::ImageOnly);
+    assert!(
+        diagnosis
+            .message()
+            .contains("outlined/vector text but no extractable text layer")
+    );
+}
+
+#[test]
+fn pdf_no_text_diagnosis_detects_spaced_pdf_name_image_subtype() {
+    let diagnosis = pdf::diagnose_no_extractable_text(
+        b"%PDF-1.7\n<</ProcSet[/PDF/Text]/XObject<</Im0 2 0 R>>>>\n<</Subtype /Image /Type /XObject>>",
+    );
+
+    assert_eq!(diagnosis, pdf::PdfNoTextDiagnosis::ImageOnly);
+}
+
+#[test]
 fn pdf_no_text_diagnosis_detects_missing_unicode_maps() {
     let diagnosis = pdf::diagnose_no_extractable_text(
         b"%PDF-1.7\n<</ProcSet[/PDF/Text]/Font<</F1 2 0 R>>>>\n<</Type/Font/Subtype/Type0/Encoding/Identity-H>>",
