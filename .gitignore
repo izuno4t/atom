@@ -32,3 +32,4 @@ evaluation/atom-evaluation.config.toml
 tests/inputs/*
 !tests/inputs/.gitkeep
 !tests/inputs/README.md
+.DS_Store
