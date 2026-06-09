@@ -596,9 +596,14 @@ def read_text(path: Path) -> str:
 
 
 def safe_name(value: str) -> str:
-    return "".join(
-        character if character.isalnum() or character in "-_" else "_" for character in value
-    )
+    stem = "".join(
+        character if character.isascii() and (character.isalnum() or character in "-_") else "_"
+        for character in value
+    ).strip("_")
+    digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+    if not stem:
+        stem = "file"
+    return f"{stem[:120]}_{digest}"
 
 
 if __name__ == "__main__":

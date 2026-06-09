@@ -89,14 +89,17 @@ fn merge_pdf_page_text_with_ocr(
     for (page_index, page_objects) in page_texts.into_iter().enumerate() {
         if page_objects.is_empty() || ocr_by_page.contains_key(&page_index) {
             if let Some(text) = ocr_by_page.get(&page_index) {
-                objects.extend(text.lines().map(str::trim).filter_map(|line| {
-                    (!line.is_empty()).then(|| pdf::PdfTextObject {
-                        text: line.to_string(),
-                        font_size: None,
-                        x: None,
-                        y: None,
-                    })
-                }));
+                objects.extend(
+                    text.lines()
+                        .map(str::trim)
+                        .filter(|line| !line.is_empty())
+                        .map(|line| pdf::PdfTextObject {
+                            text: line.to_string(),
+                            font_size: None,
+                            x: None,
+                            y: None,
+                        }),
+                );
             }
         } else {
             objects.extend(page_objects);

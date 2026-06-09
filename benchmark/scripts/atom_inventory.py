@@ -6,6 +6,7 @@ import hashlib
 import subprocess
 import tomllib
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 
@@ -18,6 +19,7 @@ def main() -> int:
     parser.add_argument("--atom-command")
     parser.add_argument("--per-file-timeout-seconds", type=int)
     parser.add_argument("--retry-statuses")
+    parser.add_argument("--jobs", type=int, default=1)
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -45,6 +47,8 @@ def main() -> int:
 
     if not input_dir.is_dir():
         raise NotADirectoryError(f"input_dir is not a directory: {input_dir}")
+    if args.jobs < 1:
+        raise ValueError("--jobs must be >= 1")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(parents=True, exist_ok=True)
@@ -65,15 +69,46 @@ def main() -> int:
     with out.open("a", encoding="utf-8") as file:
         if write_header:
             file.write("path\tstatus\telapsed_ms\tchars\tsha256\terror\n")
-        for index, path in pending_files:
-            file.write(
-                inventory_file(atom_command, path, output_root, timeout_seconds) + "\n"
-            )
+        for _index, result in run_inventory_jobs(
+            pending_files, atom_command, output_root, timeout_seconds, args.jobs, len(files)
+        ):
+            file.write(result + "\n")
             file.flush()
-            print(f"{index}/{len(files)} {path}", flush=True)
 
     print(out)
     return 0
+
+
+def run_inventory_jobs(
+    pending_files: list[tuple[int, Path]],
+    atom_command: str,
+    output_root: Path,
+    timeout_seconds: int,
+    jobs: int,
+    total_files: int,
+) -> list[tuple[int, str]]:
+    if jobs == 1:
+        results = []
+        for index, path in pending_files:
+            result = inventory_file(atom_command, path, output_root, timeout_seconds)
+            results.append((index, result))
+            print(f"{index}/{total_files} {path}", flush=True)
+        return results
+
+    results: dict[int, str] = {}
+    with ThreadPoolExecutor(max_workers=jobs) as executor:
+        futures = {
+            executor.submit(inventory_file, atom_command, path, output_root, timeout_seconds): (
+                index,
+                path,
+            )
+            for index, path in pending_files
+        }
+        for future in as_completed(futures):
+            index, path = futures[future]
+            results[index] = future.result()
+            print(f"{index}/{total_files} {path}", flush=True)
+    return sorted(results.items())
 
 
 def load_config(config_arg: str | None) -> dict[str, str]:
@@ -157,10 +192,21 @@ def inventory_file(atom_command: str, path: Path, output_root: Path, timeout_sec
     markdown = output_path.read_text(encoding="utf-8", errors="replace")
     if not markdown.strip():
         return row(path, "empty", started, 0, "", "atom produced empty markdown output")
+    unsupported_message = unsupported_input_message(markdown)
+    if unsupported_message:
+        output_path.unlink(missing_ok=True)
+        return row(path, "error", started, 0, "", unsupported_message)
 
     digest = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
     elapsed_ms = int((time.monotonic() - started) * 1000)
     return "\t".join([tsv(path), "ok", str(elapsed_ms), str(len(markdown)), digest, ""])
+
+
+def unsupported_input_message(markdown: str) -> str:
+    first_line = markdown.splitlines()[0].strip() if markdown.splitlines() else ""
+    if first_line.startswith("Unsupported input format:"):
+        return first_line
+    return ""
 
 
 def row(path: Path, status: str, started: float, chars: int, digest: str, error: str) -> str:
@@ -169,9 +215,14 @@ def row(path: Path, status: str, started: float, chars: int, digest: str, error:
 
 
 def safe_name(value: str) -> str:
-    return "".join(
-        character if character.isalnum() or character in "-_" else "_" for character in value
-    )
+    stem = "".join(
+        character if character.isascii() and (character.isalnum() or character in "-_") else "_"
+        for character in value
+    ).strip("_")
+    digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+    if not stem:
+        stem = "file"
+    return f"{stem[:120]}_{digest}"
 
 
 def tsv(value: object) -> str:

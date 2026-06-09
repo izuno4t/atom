@@ -144,6 +144,75 @@ MarkItDownと `atom` のTSVを突き合わせ、次の分類を作る。
 - 処理時間が悪化していないか
 - 代表サンプルのMarkdownが読めるか
 
+## 自動化runner
+
+`TASK-005` から `TASK-010` までの初期評価で、対象外形式を `atom` が
+Markdown本文として出力し、棚卸し上は `ok` になる共通原因が見つかった。
+このため、`benchmark/scripts/atom_inventory.py` は
+`Unsupported input format:` で始まる出力を `error` として記録する。
+
+残りディレクトリは `benchmark/scripts/run_directory_evaluation.py` で再開できる。
+このrunnerは状態表を読み、ディレクトリ単位でMarkItDown棚卸し、`atom`棚卸し、
+出力検査、比較レポート、分析メモ作成、状態表更新を順に実行する。
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/run_directory_evaluation.py \
+  --status-table benchmark/reports/directory-evaluation-status.tsv \
+  --skip-done \
+  --jobs 2
+```
+
+個別ディレクトリだけを再実行する場合は `--directory-id dir-011` のように指定する。
+複数指定もできる。
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/run_directory_evaluation.py \
+  --directory-id dir-011 \
+  --directory-id dir-013 \
+  --jobs 2
+```
+
+`--jobs` はディレクトリ単位の並列数である。
+単一ディレクトリ内のファイル処理は `--file-jobs` で並列化する。
+`--file-jobs` を省略した場合は `--jobs` と同じ値を使う。
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/run_directory_evaluation.py \
+  --directory-id dir-007 \
+  --jobs 1 \
+  --file-jobs 4
+```
+
+既存の棚卸し結果を作り直す場合は `--rerun-all` を指定する。
+このオプションは `ok`、`error`、`empty`、`timeout` を再試行対象にし、
+対象ディレクトリのTSVを実質的に再生成する。
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/run_directory_evaluation.py \
+  --directory-id dir-007 \
+  --jobs 1 \
+  --file-jobs 4 \
+  --rerun-all
+```
+
+Markdown出力ファイル名は、元ファイルパスをASCII安全な短縮名に変換し、
+SHA-256の短い接尾辞を付ける。これは長い実ファイル名でOSのファイル名長上限を
+超えないようにするためである。
+
+人手確認用のサンプルは `benchmark/scripts/select_review_samples.py` で抽出する。
+このスクリプトはディレクトリ別の棚卸しTSVを読み、次の分類から指定件数ずつ
+`benchmark/reports/review-samples.md` に出力する。
+
+- MarkItDown成功、`atom`非成功
+- 両方成功
+- MarkItDown非成功、`atom`成功
+- 両方非成功
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/select_review_samples.py \
+  --limit-per-bucket 10
+```
+
 ## 停止条件
 
 次のいずれかに該当した場合、ディレクトリ単位の処理を止めて記録する。

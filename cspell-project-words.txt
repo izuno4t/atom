@@ -12,15 +12,20 @@ bbox
 BY
 Chandra
 CLAUDE
+cids
 clippy
 cmap
 cmaps
 codex
+codepoint
 CommonMark
 comptime
 ConTeXt
 corpora
+COTEN
 datalab
+designingfortheordinary
+designsystem
 Docling
 DoclingDocument
 doctags
@@ -40,6 +45,7 @@ hayro
 Heisei
 Hira
 insta
+inui
 ipsj
 izuno
 imagedata
@@ -49,6 +55,7 @@ justfile
 Kaku
 Koten
 koten
+koma
 Kotlin
 kuzushiji
 LibreOffice
@@ -60,6 +67,7 @@ Midashi
 MinerU
 mhlw
 Mincho
+mojibake
 mwilliamson
 mypy
 NDLOCR
@@ -78,9 +86,11 @@ OpenLaszlo
 Pandoc
 PCORPUS
 pdf
+pdfinfo
 pdfium
 pdfminer
 pdfplumber
+pdftotext
 peekable
 pixmap
 Poppler
@@ -89,6 +99,7 @@ proptest
 PyMuPDF
 PyMuPDF4LLM
 pytesseract
+qpdf
 qwen
 quickcheck
 quickstart
