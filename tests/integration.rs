@@ -328,7 +328,7 @@ fn pdf_conversion_report_records_backend_and_ocr_requirement() {
             .report
             .metadata
             .iter()
-            .any(|(key, value)| { key == "pdf_backend" && value == "pdf-oxide-form-words" })
+            .any(|(key, value)| { key == "pdf_backend" && value == "atom-pdf-text" })
     );
     assert!(
         result
@@ -342,7 +342,7 @@ fn pdf_conversion_report_records_backend_and_ocr_requirement() {
             .report
             .features
             .iter()
-            .any(|feature| { feature == "pdf_backend:pdf-oxide-form-words" })
+            .any(|feature| { feature == "pdf_backend:atom-pdf-text" })
     );
 }
 
@@ -593,14 +593,49 @@ fn reports_unsupported_formats_without_external_calls() {
 }
 
 #[test]
-fn markdown_input_is_not_a_supported_conversion_source() {
+fn converts_markdown_input_as_passthrough() {
     let converter = Converter::new();
     let result = converter
         .convert_bytes("notes.md", b"# Already markdown")
         .unwrap();
 
     assert_eq!(result.report.input_format, "md");
-    assert!(result.markdown.contains("Unsupported input format: md"));
+    assert_eq!(result.markdown, "# Already markdown\n");
+    assert!(result.report.warnings.is_empty());
+}
+
+#[test]
+fn converts_text_like_inputs_to_markdown() {
+    let converter = Converter::new();
+    let result = converter
+        .convert_bytes("links.gdoc", br#"{"url":"https://example.com"}"#)
+        .unwrap();
+
+    assert_eq!(result.report.input_format, "gdoc");
+    assert!(result.markdown.starts_with("```json"));
+    assert!(!result.markdown.contains("Unsupported input format"));
+}
+
+#[test]
+fn converts_pdf_compatible_ai_file_with_pdf_parser() {
+    let root = Path::new("target/ai-pdf-compatible-test");
+    let _ = fs::remove_dir_all(root);
+    fs::create_dir_all(root).unwrap();
+    let ai = root.join("sample.ai");
+    fs::copy("tests/fixtures/unit/pdf/text-heading.pdf", &ai).unwrap();
+
+    let result = Converter::new().convert_file(&ai).unwrap();
+
+    assert_eq!(result.report.input_format, "ai");
+    assert!(result.markdown.contains("Fixture Title"));
+    assert!(!result.markdown.contains("Unsupported input format"));
+    assert!(
+        result
+            .report
+            .metadata
+            .iter()
+            .any(|(key, value)| key == "container_format" && value == "pdf")
+    );
 }
 
 #[test]
@@ -1130,6 +1165,26 @@ fn converts_xlsx_multiple_sheets_with_sheet_headings() {
             .iter()
             .any(|(key, value)| key == "worksheets" && value == "2")
     );
+}
+
+#[test]
+fn converts_xlsm_with_xlsx_worksheet_parser() {
+    let root = Path::new("target/xlsm-parser-test");
+    let _ = fs::remove_dir_all(root);
+    fs::create_dir_all(root.join("xl/worksheets")).unwrap();
+    fs::write(
+        root.join("xl/worksheets/sheet1.xml"),
+        r#"<worksheet><sheetData><row><c t="inlineStr"><is><t>Status</t></is></c></row></sheetData></worksheet>"#,
+    )
+    .unwrap();
+    let xlsm = root.join("sample.xlsm");
+    zip_fixture(root, &xlsm, &["xl/worksheets/sheet1.xml"]);
+
+    let result = Converter::new().convert_file(&xlsm).unwrap();
+
+    assert_eq!(result.report.input_format, "xlsm");
+    assert!(result.markdown.contains("Status"));
+    assert!(!result.markdown.contains("Unsupported input format"));
 }
 
 #[test]

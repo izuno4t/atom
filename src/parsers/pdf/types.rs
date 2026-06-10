@@ -28,6 +28,8 @@ pub trait PdfTextBackend {
     fn extract_text(&self, bytes: &[u8]) -> PdfTextExtraction;
 }
 
+pub struct AtomPdfTextBackend;
+
 pub struct InternalPdfTextBackend;
 
 pub struct PdfExtractBackend;

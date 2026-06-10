@@ -13,9 +13,9 @@ pub use diagnosis::{diagnose_no_extractable_text, is_encrypted_pdf, pdf_security
 pub use raw_content::RawContentTextBackend;
 pub use structure::infer_headings;
 pub use types::{
-    InternalPdfTextBackend, LenientPdfExtractBackend, LopdfTextBackend, PdfExtractBackend,
-    PdfNoTextDiagnosis, PdfOxideFormWordsBackend, PdfOxideTextBackend, PdfParseResult,
-    PdfRsTextBackend, PdfTextBackend, PdfTextExtraction, PdfTextObject,
+    AtomPdfTextBackend, InternalPdfTextBackend, LenientPdfExtractBackend, LopdfTextBackend,
+    PdfExtractBackend, PdfNoTextDiagnosis, PdfOxideFormWordsBackend, PdfOxideTextBackend,
+    PdfParseResult, PdfRsTextBackend, PdfTextBackend, PdfTextExtraction, PdfTextObject,
 };
 
 use quality::{pdf_result_is_usable, pdf_result_score, pdf_text_looks_incomplete};
@@ -26,14 +26,29 @@ pub fn parse_pdf(bytes: &[u8], warnings: &mut Vec<String>) -> Vec<AstNode> {
 }
 
 pub fn parse_pdf_with_embedded_backend(bytes: &[u8], warnings: &mut Vec<String>) -> PdfParseResult {
-    let backends: [&dyn PdfTextBackend; 5] = [
+    const RAW_CONTENT_BEFORE_PDF_RS_LIMIT_BYTES: usize = 2 * 1024 * 1024;
+    let small_pdf_backends: [&dyn PdfTextBackend; 5] = [
+        &PdfOxideFormWordsBackend,
+        &RawContentTextBackend,
+        &PdfRsTextBackend,
+        &PdfOxideTextBackend,
+        &InternalPdfTextBackend,
+    ];
+    let default_backends: [&dyn PdfTextBackend; 5] = [
         &PdfOxideFormWordsBackend,
         &PdfRsTextBackend,
         &RawContentTextBackend,
         &PdfOxideTextBackend,
         &InternalPdfTextBackend,
     ];
-    parse_pdf_with_ordered_backends(bytes, &backends, warnings)
+    let backends: &[&dyn PdfTextBackend] = if bytes.len() <= RAW_CONTENT_BEFORE_PDF_RS_LIMIT_BYTES {
+        &small_pdf_backends
+    } else {
+        &default_backends
+    };
+    let mut result = parse_pdf_with_ordered_backends(bytes, backends, warnings);
+    result.backend = AtomPdfTextBackend.name().to_string();
+    result
 }
 
 pub fn parse_pdf_with_ordered_backends(

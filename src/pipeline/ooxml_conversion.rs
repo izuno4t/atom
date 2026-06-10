@@ -19,7 +19,7 @@ pub(crate) fn convert_ooxml_file(
     let mut ast = match input_format.as_str() {
         "docx" => parse_docx_file(path, &mut metadata, &mut warnings),
         "pptx" => parse_pptx_file(path, &mut metadata, &mut warnings)?,
-        "xlsx" => parse_xlsx_file(path, &mut metadata, &mut warnings)?,
+        "xlsx" | "xlsm" => parse_xlsx_file(path, &mut metadata, &mut warnings)?,
         _ => vec![unsupported_node(&input_format)],
     };
 

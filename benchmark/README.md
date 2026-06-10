@@ -26,6 +26,8 @@
 指定したディレクトリ直下の通常ファイルをMarkItDownでMarkdown化し、TSVで
 棚卸しします。サブディレクトリは辿りません。MarkItDownで処理できない
 ファイルも `error` として記録します。
+M6のMarkItDown比較では、`benchmark/scripts/atom_supported_extensions.py` に
+定義した `atom` 対応拡張子だけを対象にします。
 既存のTSVがある場合は記録済みのパスをスキップして再開します。
 `per_file_timeout_seconds` を超えたファイルは `timeout` として記録します。
 `retry_statuses` に `error,timeout` のように指定すると、該当ステータスだけ
@@ -45,6 +47,32 @@ benchmark/.venv/bin/python benchmark/scripts/markitdown_inventory.py
 ```
 
 TSVの列は `path`, `status`, `elapsed_ms`, `chars`, `sha256`, `error` です。
+
+## Directory Evaluation
+
+複数ディレクトリを同じ条件で評価する場合は
+`benchmark/scripts/run_directory_evaluation.py` を使います。このrunnerは
+状態表を読み、ディレクトリ単位でMarkItDown棚卸し、`atom`棚卸し、inspection、
+comparison、analysisを実行します。
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/run_directory_evaluation.py \
+  --status-table benchmark/reports/directory-evaluation-status.tsv \
+  --jobs 4 \
+  --file-jobs 4 \
+  --rerun-all
+```
+
+ディレクトリ別の棚卸しと比較結果は `benchmark/reports/by-directory/` に、
+Markdown出力は `benchmark/outputs/by-directory/` に保存します。どちらも
+Git管理外です。
+
+人手確認用のサンプル抽出は次で実行します。
+
+```bash
+benchmark/.venv/bin/python benchmark/scripts/select_review_samples.py \
+  --limit-per-bucket 10
+```
 
 ## MarkItDown Output Inspection
 

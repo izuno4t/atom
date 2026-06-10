@@ -5,7 +5,8 @@ unit fixtureと実コーパス評価へ落とす基準を定義する。
 
 ## 基本方針
 
-- まず公開データを `evaluation/inputs/` に置き、atomと比較ツールで変換する。
+- まず公開データを `evaluation/inputs/` に置き、atom本体のfixture候補として
+  管理する。外部比較ツールとの変換比較は `benchmark/` で実行する。
 - 変換結果から、見出し、表、読順、図表、caption、media、warningの失敗パターンを
   特定する。
 - fixtureは、その失敗パターンと同じ文書形式で作る。
@@ -18,8 +19,9 @@ unit fixtureと実コーパス評価へ落とす基準を定義する。
 ## Fixture化フロー
 
 1. 公開データを収集し、出典、ライセンス、形式、選定理由を記録する。
-2. `benchmark/` のscriptで比較ツールのMarkdown/reportを出力する。
-3. 人が `evaluation/outputs/` を確認し、失敗パターンを分類する。
+2. `benchmark/` のscriptで比較ツールとatomのMarkdown/reportを出力する。
+3. 人が `benchmark/outputs/` と `benchmark/reports/` を確認し、
+   失敗パターンを分類する。
 4. 失敗原因を保ったまま、最小のDOCX/PPTX/XLSX/PDFを作成する。
 5. 作成した文書を `tests/fixtures/unit/` または `tests/fixtures/integration/` に置く。
 6. expected Markdown、expected warning/report断片、fixtureの由来を記録する。
@@ -86,5 +88,5 @@ manifestには次を記録する。
 
 - 各形式に少なくとも一つ、公開データの変換失敗から導いたfixtureを置く。
 - 実コーパス評価は100 PDFなどの件数指定に対応しつつ、CIでは実行しない。
-- 出力は `evaluation/outputs/` にツール別、入力別に配置し、人がMarkdownとreportを
-  並べて確認できるようにする。
+- 外部比較の出力は `benchmark/outputs/` と `benchmark/reports/` に置き、
+  `evaluation/outputs/` へ混在させない。

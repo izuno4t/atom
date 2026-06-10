@@ -9,6 +9,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from atom_supported_extensions import is_atom_supported_path
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -53,15 +55,18 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(parents=True, exist_ok=True)
 
-    files = sorted(path for path in input_dir.iterdir() if path.is_file())
-    completed_paths = prepare_existing_inventory(out, retry_statuses)
+    all_files = sorted(path for path in input_dir.iterdir() if path.is_file())
+    files = [path for path in all_files if is_atom_supported_path(path)]
+    supported_paths = {tsv(path) for path in files}
+    completed_paths = prepare_existing_inventory(out, retry_statuses, supported_paths)
     pending_files = [
         (index, path)
         for index, path in enumerate(files, start=1)
         if tsv(path) not in completed_paths
     ]
     print(
-        f"resume: {len(completed_paths)} recorded, {len(pending_files)} pending",
+        f"resume: {len(completed_paths)} recorded, {len(pending_files)} pending, "
+        f"{len(all_files) - len(files)} unsupported skipped",
         flush=True,
     )
 
@@ -135,17 +140,17 @@ def parse_statuses(value: str) -> set[str]:
     return {status.strip() for status in value.split(",") if status.strip()}
 
 
-def prepare_existing_inventory(out: Path, retry_statuses: set[str]) -> set[str]:
+def prepare_existing_inventory(
+    out: Path, retry_statuses: set[str], supported_paths: set[str]
+) -> set[str]:
     if not out.exists():
         return set()
     lines = out.read_text(encoding="utf-8").splitlines()
-    if not retry_statuses:
-        return completed_paths(lines)
 
     retained = [lines[0]] if lines else ["path\tstatus\telapsed_ms\tchars\tsha256\terror"]
     for line in lines[1:]:
         columns = line.split("\t")
-        if len(columns) < 2 or columns[1] in retry_statuses:
+        if len(columns) < 2 or columns[0] not in supported_paths or columns[1] in retry_statuses:
             continue
         retained.append(line)
     out.write_text("\n".join(retained) + "\n", encoding="utf-8")

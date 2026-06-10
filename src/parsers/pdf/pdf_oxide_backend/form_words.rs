@@ -22,14 +22,19 @@ pub(super) fn extract_pdf_oxide_form_words_page(
     let words = document
         .extract_words(page_index)?
         .into_iter()
-        .map(|word| PdfOxideWord {
-            text: word.text,
-            x0: word.bbox.x,
-            x1: word.bbox.x + word.bbox.width,
-            top: word.bbox.y,
-        })
+        .filter_map(|word| pdf_oxide_word(word.text, word.bbox.x, word.bbox.width, word.bbox.y))
         .collect::<Vec<_>>();
     Ok(extract_form_content_from_pdf_oxide_words(words))
+}
+
+fn pdf_oxide_word(text: String, x: f32, width: f32, y: f32) -> Option<PdfOxideWord> {
+    let x1 = x + width;
+    (x.is_finite() && x1.is_finite() && y.is_finite()).then_some(PdfOxideWord {
+        text,
+        x0: x,
+        x1,
+        top: y,
+    })
 }
 
 fn extract_form_content_from_pdf_oxide_words(words: Vec<PdfOxideWord>) -> Option<String> {
@@ -188,6 +193,19 @@ fn is_pdf_partial_numbering(text: &str) -> bool {
         return false;
     };
     !rest.is_empty() && rest.chars().all(|character| character.is_ascii_digit())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ignores_words_with_non_finite_coordinates() {
+        assert!(pdf_oxide_word("ok".to_string(), 10.0, 10.0, 10.0).is_some());
+        assert!(pdf_oxide_word("bad".to_string(), f32::NAN, 10.0, 10.0).is_none());
+        assert!(pdf_oxide_word("bad".to_string(), 10.0, f32::INFINITY, 10.0).is_none());
+        assert!(pdf_oxide_word("bad".to_string(), 10.0, 10.0, f32::NEG_INFINITY).is_none());
+    }
 }
 mod table;
 

@@ -11,11 +11,14 @@ pub(super) fn collect_scanned_pdf_stream_text_lines(
     resources: &RawDecodeResources,
     lines: &mut Vec<String>,
 ) {
-    for data in flate_pdf_content_streams(bytes) {
+    for data in flate_pdf_content_streams(bytes).into_iter().take(128) {
         let Ok(content) = lopdf::content::Content::decode(&data) else {
             continue;
         };
         collect_raw_pdf_text_lines(&content.operations, &BTreeMap::new(), resources, lines);
+        if lines.len() >= 20_000 {
+            break;
+        }
     }
 }
 
@@ -33,6 +36,10 @@ fn flate_pdf_content_streams(bytes: &[u8]) -> Vec<Vec<u8>> {
         let data_end = data_start + end_offset;
         if let Some(object_id) = text_content_stream_object_id(bytes, stream_start) {
             let compressed = trim_pdf_stream_data(&bytes[data_start..data_end]);
+            if compressed.len() > 16 * 1024 * 1024 {
+                search_start = data_end + b"endstream".len();
+                continue;
+            }
             if let Some(data) = inflate_zlib_stream(compressed) {
                 streams.push(data);
             } else if let Some(encryption) = &encryption {

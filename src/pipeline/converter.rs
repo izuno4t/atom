@@ -28,10 +28,11 @@ impl Converter {
         let path = input.as_ref();
         let ext = extension(path);
         match ext.as_str() {
-            "docx" | "pptx" | "xlsx" => {
+            "docx" | "pptx" | "xlsx" | "xlsm" => {
                 return convert_ooxml_file(path, ext, &self.options);
             }
-            "pdf" | "html" | "htm" | "" => {}
+            "md" | "txt" | "csv" | "xml" | "svg" | "gdoc" => {}
+            "pdf" | "ai" | "html" | "htm" | "" => {}
             other => return Ok(self.unsupported_file_result(path, other)),
         }
         let bytes = fs::read(path)?;
@@ -70,6 +71,7 @@ impl Converter {
         let mut warnings = Vec::new();
         let input_format = detect_format(input_name, bytes);
         let mut metadata = vec![("bytes".to_string(), bytes.len().to_string())];
+        let parse_format = parse_format(&input_format, bytes, &mut metadata);
         let mut media = Vec::new();
 
         if let Some(media_dir) = &self.options.extract_media {
@@ -78,7 +80,7 @@ impl Converter {
         }
 
         let mut pdf_report = None;
-        let mut ast = match input_format.as_str() {
+        let mut ast = match parse_format.as_str() {
             "html" => html::parse_html(
                 std::str::from_utf8(bytes).unwrap_or_default(),
                 &mut warnings,
@@ -119,6 +121,9 @@ impl Converter {
                     ));
                     vec![unsupported_node(&input_format)]
                 }
+            }
+            "md" | "txt" | "csv" | "xml" | "svg" | "gdoc" => {
+                text_like_ast(&input_format, String::from_utf8_lossy(bytes).as_ref())
             }
             _ => {
                 warnings.push(format!("unsupported input format: {input_format}"));
@@ -176,6 +181,31 @@ impl Converter {
             report,
         })
     }
+}
+
+fn text_like_ast(input_format: &str, text: &str) -> Vec<AstNode> {
+    match input_format {
+        "md" | "txt" => vec![AstNode::RawHtml(text.trim().to_string())],
+        "csv" => fenced_text("csv", text),
+        "xml" | "svg" => fenced_text("xml", text),
+        "gdoc" => fenced_text("json", text),
+        _ => vec![unsupported_node(input_format)],
+    }
+}
+
+fn parse_format(input_format: &str, bytes: &[u8], metadata: &mut Vec<(String, String)>) -> String {
+    if input_format == "ai" && bytes.starts_with(b"%PDF") {
+        metadata.push(("container_format".to_string(), "pdf".to_string()));
+        return "pdf".to_string();
+    }
+    input_format.to_string()
+}
+
+fn fenced_text(language: &str, text: &str) -> Vec<AstNode> {
+    vec![AstNode::CodeBlock {
+        language: Some(language.to_string()),
+        code: text.trim().to_string(),
+    }]
 }
 
 fn validate_media_options(options: &ConversionOptions) -> io::Result<()> {

@@ -90,11 +90,11 @@
 | TASK-032 | ✅ | 評価分析するパン祭りシール | TASK-027 |
 | TASK-024 | ✅ | 集約する原因分類と修正計画 | TASK-023,TASK-032 |
 | TASK-028 | ✅ | 修正する最優先の共通原因 | TASK-024 |
-| TASK-029 | ✅ | 修正する次点の共通原因 | TASK-028 |
-| TASK-030 | ✅ | 修正する残存する重要原因 | TASK-029 |
-| TASK-031 | ✅ | 再評価する全ディレクトリ | TASK-030 |
-| TASK-025 | ✅ | 整理する単体評価と比較評価の配置 | TASK-031 |
-| TASK-026 | ✅ | 修正する設計実装乖離と文書構造 | TASK-025 |
+| TASK-029 | 🚧 | 修正する次点の共通原因 | TASK-028 |
+| TASK-030 | ⏳ | 修正する残存する重要原因 | TASK-029 |
+| TASK-031 | ⏳ | 再評価する全ディレクトリ | TASK-030 |
+| TASK-025 | ⏳ | 整理する単体評価と比較評価の配置 | TASK-031 |
+| TASK-026 | ⏳ | 修正する設計実装乖離と文書構造 | TASK-025 |
 
 ## タスク詳細（補足が必要な場合のみ）
 
@@ -273,6 +273,19 @@
   原因。
 - 成果: 原因に対応する最小修正、回帰テスト、対象サンプルでの確認結果を残す。
 - 注意: ほかの原因を同じ変更に混ぜない。
+- 結果: MarkItDownとの比較対象を、`atom` が扱える拡張子だけに絞るよう
+  棚卸し処理を修正した。比較対象270件の再評価では、MarkItDownが `ok` で
+  `atom` が `error` の負けケースは0件になった。
+- 結果: `.md`、`.txt`、`.csv`、`.xml`、`.svg`、`.gdoc`、`.xlsm`、
+  PDF互換`.ai` を既存経路に接続し、PDF座標異常によるpanicを捕捉するよう
+  修正した。
+- 結果: `ok` / `ok` の263件では、MarkItDown合計698,797msに対し `atom` は
+  425,048msだった。速度負け107件の遅延合計59,142msのうち、PDFが82件、
+  57,395msを占める。
+- 判断: `.zip`、`.key`、`.reg` は通常文書変換の比較対象ではないため
+  supported拡張子から外した。直接入力時は unsupported document を返してよい。
+- 判断: `31_67.pdf` の速度外れ値に対し、`pdf_extract` を小型PDFで先行させる案を
+  実測したが、29.9秒かかりpanic文も出たため採用しなかった。
 
 ### TASK-029
 
@@ -280,6 +293,11 @@
 - 対象: 最優先原因の次に件数、影響範囲、修正可能性が高い原因。
 - 成果: 原因に対応する最小修正、回帰テスト、対象サンプルでの確認結果を残す。
 - 注意: `TASK-028` の回帰がないことを確認してから着手する。
+- 結果: `TASK-028` 後の次点原因はPDF速度外れ値と判断した。MarkItDown勝ち
+  107件の遅延合計59,142msのうち、PDFが82件、57,395msを占めた。
+- 結果: 最大外れ値 `31_67.pdf` に対して `pdf_extract` を小型PDFで先行させる
+  小修正案を実測したが、29.9秒かかりpanic文も出たため採用しなかった。
+- 判断: PDF速度外れ値はM6内の `TASK-029` で継続して修正する。
 
 ### TASK-030
 
@@ -288,6 +306,13 @@
   重要原因。
 - 成果: M6内で直すものとM7へ送るものを明確に分ける。
 - 注意: 大きな設計変更が必要な機能改善はM7へ送る。
+- 結果: supported拡張子のみの270件では、MarkItDownが `ok` で `atom` が非成功の
+  ケースは0件であり、M6内で追加修正すべき成功率原因は残らなかった。
+- 結果: 残る7件はMarkItDownも空出力で、PDFまたはPDF互換AIの抽出不能として
+  `atom` はerror分類している。これは成功率負けではなく、OCRまたはPDF抽出器改善の
+  境界として扱う。
+- 判断: PDF速度外れ値は `TASK-029` の完了条件に含める。OCRなし抽出不能PDFは、
+  `TASK-029` 完了後に `TASK-030` でM6内修正対象かどうかを判断する。
 
 ### TASK-031
 
@@ -296,6 +321,13 @@
 - 成果: 修正前後で、成功数、失敗理由、処理時間、文字数、Markdownハッシュを
   比較できる状態にする。
 - 注意: 対象集合を変えた場合は前後比較として扱わない。
+- 結果: `benchmark/scripts/run_directory_evaluation.py --jobs 4 --file-jobs 4 --rerun-all`
+  で全ディレクトリを再評価した。
+- 結果: `benchmark/reports/directory-evaluation-status.tsv` は22ディレクトリ中、
+  通常ファイルあり20件がMarkItDown、`atom`、comparisonすべて `done`、
+  通常ファイル0件の2件が `excluded` である。
+- 結果: `benchmark/reports/by-directory/dir-*/` に各ディレクトリの棚卸し、
+  inspection、comparison、analysisを生成済みである。詳細成果物はGit管理外に置く。
 
 ### TASK-025
 
@@ -307,6 +339,15 @@
   集中し、`benchmark/` はMarkItDownなど他ツールとの比較評価に集中する。
 - 注意: フォルダ間でrunner、設定、outputs、reportsが相互依存しない構造へ
   再配置する。実文書や生成物はGit管理外を維持する。
+- 結果: 外部ツール比較、MarkItDown棚卸し、ディレクトリ別runner、review sample抽出は
+  `benchmark/scripts/` に集約した。実行結果は `benchmark/reports/` と
+  `benchmark/outputs/` に置き、どちらもGit管理外である。
+- 結果: `evaluation/` は `atom-evaluation` crate、fixture評価、回帰検出、
+  probeに限定した。`evaluation/inputs/`、`evaluation/outputs/`、
+  `evaluation/reports/` は `.gitkeep` 以外をGit管理外にしている。
+- 確認: `git check-ignore` で `benchmark/benchmark.config.toml`、
+  `benchmark/reports/`、`benchmark/outputs/`、`evaluation/inputs/`、
+  `evaluation/outputs/`、`evaluation/reports/` が管理外になることを確認した。
 
 ### TASK-026
 
@@ -316,7 +357,15 @@
   実行手順、成果物の保存先、Git管理対象と管理外の区分。
 - 成果: 実装済みスクリプト、実際の出力先、タスク表、手順書が矛盾せず、
   次のM7改善実装へ引き渡せる状態にする。
-- 注意: 評価結果を受けた構造見直しに限定し、変換本体の機能改善はM7へ送る。
+- 注意: 評価結果を受けた構造見直しに限定し、変換本体の機能改善は
+  `TASK-029` と `TASK-030` の完了後に反映する。
+- 結果: `benchmark/methods/directory-evaluation-plan.md` にsupported拡張子基準、
+  並列runner、`--file-jobs`、`--rerun-all`、review sample抽出を反映した。
+- 結果: `evaluation/methods/fixture-design.md` の外部比較出力先を
+  `benchmark/outputs/` と `benchmark/reports/` に修正し、`evaluation/outputs/`
+  へ混在させない方針に揃えた。
+- 結果: `docs/implementation-plan.md` の古い速度記述をM6再評価結果へ更新した。
+- 結果: `docs/m6-evaluation-summary.md` にM6結果を記録した。
 
 ## Backlog一覧
 

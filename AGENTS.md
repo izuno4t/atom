@@ -116,6 +116,15 @@ Python, JavaScript, Java, or Go before designing the Rust implementation.
 Record the referenced libraries, official specifications, or official
 documentation in the implementation report or related docs.
 
+Do not decide parser or backend execution order from the performance of a
+single file or a small hand-picked sample. Before changing backend order,
+verify the impact on the supported evaluation set, including success status,
+speed distribution, failure classification, and outliers. Treat an individual
+file's performance as a hypothesis for root-cause analysis, not as a decision
+criterion by itself. If a special case is necessary, express it as a reusable
+document-structure condition such as page count, object structure, extraction
+quality, or detected PDF features, not as a file-name or sample-specific rule.
+
 OCR engines are an exception when the engine itself is external. In that
 case, missing backends must be reported clearly with the required backend
 name and setup implication.
