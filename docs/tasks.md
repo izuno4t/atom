@@ -19,12 +19,6 @@
 | ✅ | 完了、DONE |
 | 🚫 | 中止、CANCELLED |
 
-## 移動元
-
-- 旧タスク表: `docs/archive/tasks-m1-m5.md`
-- 移動対象: 旧 `TASK-076` 以降の未完了タスクとBacklog
-- 移動理由: 現行 `docs/tasks.md` をM6評価プロセス専用にするため
-
 ## タスク一覧
 
 | ID | Status | Summary | DependsOn |
