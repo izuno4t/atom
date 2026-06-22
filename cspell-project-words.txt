@@ -124,6 +124,7 @@ setosa
 Surya
 Tesseract
 Turndown
+ureq
 USPTO
 vello
 venv
