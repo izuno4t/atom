@@ -6,6 +6,13 @@
 `evaluation/` は atom 本体のfixture評価と回帰検出に使います。
 外部ツール比較のrunnerやscriptは `benchmark/` に置きます。
 
+## Publication Policy
+
+外部ツールとの勝敗、性能差、失敗分類、固有ツール名を含む比較結果は、
+利用者向けREADMEではなく `benchmark/` と関連する内部評価docsに保持します。
+READMEでは、比較対象の固有名を出さず、`atom` が解決する文書変換上の課題と
+利用方法を中心に説明します。
+
 ## Layout
 
 | Path | Purpose |

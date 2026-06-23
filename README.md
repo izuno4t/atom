@@ -32,6 +32,27 @@ Use atom when you need to move messy source material into clean Markdown:
 atom report.pdf --ocr auto --llm ollama:llama3 --restructure -o report.md
 ```
 
+## 💡 Motivation
+
+If every source document were already well structured, atom would not need to
+exist. Existing general-purpose document converters are often enough for clean
+inputs.
+
+atom focuses on the documents that show up in real work:
+
+- tables that only look like tables, but are actually text boxes or absolute
+  positioning
+- headings expressed by font size or bold text instead of semantic styles
+- PDFs where paragraphs, lists, tables, footnotes, and captions lost their
+  original meaning
+- PowerPoint files where visual reading order and XML order disagree
+- Excel sheets with merged cells, blank cells, and multi-row headers
+- figures, captions, and image-heavy cells that disappear in generic converters
+- OCR or LLM-readable content that still needs local, reproducible processing
+
+The goal is not just "Markdown that an LLM can ingest." atom aims to produce
+structured Markdown that people can inspect, edit, diff, and trust.
+
 ## ✨ Highlights
 
 - 📦 Broad input support from web pages and office documents to images and scanned
@@ -324,6 +345,10 @@ error.
 
 Development setup, test commands, and release checks live in
 [CONTRIBUTE.md](CONTRIBUTE.md).
+
+## 📜 License
+
+atom is distributed under the [MIT License](LICENSE).
 
 [ci-badge]: https://github.com/izuno4t/atom/actions/workflows/ci.yml/badge.svg
 [ci]: https://github.com/izuno4t/atom/actions/workflows/ci.yml
