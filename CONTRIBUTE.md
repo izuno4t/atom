@@ -97,7 +97,7 @@ The Homebrew tap repository is
 archive published by the atom release workflow:
 
 ```text
-https://github.com/izuno4t/atom/releases/download/v0.1.0/atom-0.1.0-source.tar.gz
+https://github.com/izuno4t/atom/releases/download/v0.1.1/atom-0.1.1-source.tar.gz
 ```
 
 The release workflow updates `Formula/atom.rb` automatically. After the workflow
