@@ -31,6 +31,10 @@ impl Converter {
             "docx" | "pptx" | "xlsx" | "xlsm" => {
                 return convert_ooxml_file(path, ext, &self.options);
             }
+            "odt" | "ods" | "odp" => return self.convert_opendocument_file(path, &ext),
+            "png" | "jpg" | "jpeg" | "gif" | "webp" => {
+                return self.convert_image_file(path, &ext);
+            }
             "md" | "txt" | "csv" | "xml" | "svg" | "gdoc" => {}
             "pdf" | "ai" | "html" | "htm" | "" => {}
             other => return Ok(self.unsupported_file_result(path, other)),
@@ -65,6 +69,105 @@ impl Converter {
         }
     }
 
+    fn convert_opendocument_file(
+        &self,
+        path: &Path,
+        input_format: &str,
+    ) -> io::Result<ConversionResult> {
+        let started = Instant::now();
+        let mut warnings = Vec::new();
+        let ast = crate::opendocument::parse_opendocument_file(path, &mut warnings)?;
+        let node_count = ast.len();
+        let media = collect_media_paths(&ast);
+        let media_candidates = collect_media_candidates(&ast);
+        let rendered = render(&ast, &self.options);
+        Ok(ConversionResult {
+            ast,
+            markdown: rendered,
+            report: ConversionReport {
+                input_path: path.to_string_lossy().to_string(),
+                input_format: input_format.to_string(),
+                output_format: format_name(self.options.format).to_string(),
+                flavor: flavor_name(self.options.flavor).to_string(),
+                warnings,
+                metadata: vec![("nodes".to_string(), node_count.to_string())],
+                elapsed_ms: started.elapsed().as_millis(),
+                used_ocr: false,
+                ocr_engine: None,
+                used_llm: false,
+                llm_destination: None,
+                media,
+                media_candidates,
+                features: report_features(&self.options, &[]),
+            },
+        })
+    }
+
+    fn convert_image_file(&self, path: &Path, input_format: &str) -> io::Result<ConversionResult> {
+        let started = Instant::now();
+        let mut warnings = Vec::new();
+        let mut ast = if self.options.llm == LlmBackend::None {
+            warnings.push("image input requires --llm with a vision-capable backend.".to_string());
+            vec![unsupported_node("image input")]
+        } else if let Some(confirmation) = llm::build_send_confirmation(
+            &self.options.llm,
+            &format!("image file: {}", path.display()),
+            self.options.consent_external_send,
+        ) {
+            warnings.push(confirmation.message);
+            if !self.options.consent_external_send {
+                warnings.push(
+                    "VLM image conversion skipped because external send consent is not configured."
+                        .to_string(),
+                );
+                vec![unsupported_node("image input")]
+            } else {
+                convert_image_with_vlm(
+                    path,
+                    &self.options.llm,
+                    &self.options.llm_prompts,
+                    &mut warnings,
+                )?
+            }
+        } else {
+            convert_image_with_vlm(
+                path,
+                &self.options.llm,
+                &self.options.llm_prompts,
+                &mut warnings,
+            )?
+        };
+        if ast.is_empty() {
+            ast = vec![unsupported_node("image input")];
+        }
+        let rendered = render(&ast, &self.options);
+        let node_count = ast.len();
+        let media = vec![path.to_string_lossy().to_string()];
+        Ok(ConversionResult {
+            ast,
+            markdown: rendered,
+            report: ConversionReport {
+                input_path: path.to_string_lossy().to_string(),
+                input_format: input_format.to_string(),
+                output_format: format_name(self.options.format).to_string(),
+                flavor: flavor_name(self.options.flavor).to_string(),
+                warnings,
+                metadata: vec![
+                    ("bytes".to_string(), fs::metadata(path)?.len().to_string()),
+                    ("nodes".to_string(), node_count.to_string()),
+                ],
+                elapsed_ms: started.elapsed().as_millis(),
+                used_ocr: false,
+                ocr_engine: None,
+                used_llm: self.options.llm != LlmBackend::None,
+                llm_destination: llm_destination(&self.options.llm),
+                media: media.clone(),
+                media_candidates: Vec::new(),
+                features: report_features(&self.options, &media),
+            },
+        })
+    }
+
     pub fn convert_bytes(&self, input_name: &str, bytes: &[u8]) -> io::Result<ConversionResult> {
         validate_media_options(&self.options)?;
         let started = Instant::now();
@@ -97,6 +200,13 @@ impl Converter {
                         .to_string(),
                 );
                 vec![unsupported_node("DOCX in-memory input")]
+            }
+            "odt" | "ods" | "odp" => {
+                warnings.push(format!(
+                    "{} byte conversion cannot unzip in-memory input; use convert_file for OpenDocument.",
+                    input_format.to_uppercase()
+                ));
+                vec![unsupported_node("OpenDocument in-memory input")]
             }
             "pptx" => {
                 let text = std::str::from_utf8(bytes).unwrap_or_default();
@@ -180,6 +290,32 @@ impl Converter {
             markdown: rendered,
             report,
         })
+    }
+}
+
+fn convert_image_with_vlm(
+    path: &Path,
+    backend: &LlmBackend,
+    prompts: &std::collections::BTreeMap<String, String>,
+    warnings: &mut Vec<String>,
+) -> io::Result<Vec<AstNode>> {
+    let image = llm::image_from_path(path)?;
+    let provider = llm::DefaultLlmProvider;
+    match llm::describe_image_with_prompts(
+        &provider,
+        backend,
+        image,
+        &format!("Input image file: {}", path.display()),
+        prompts,
+    ) {
+        Ok(nodes) => {
+            warnings.push("VLM image conversion completed.".to_string());
+            Ok(nodes)
+        }
+        Err(error) => {
+            warnings.push(format!("VLM image conversion failed: {error}"));
+            Ok(vec![unsupported_node("image input")])
+        }
     }
 }
 

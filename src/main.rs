@@ -4,7 +4,8 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 
 use anything_to_markdown::{
-    ConversionOptions, Converter, load_config, parse_flavor, parse_format, parse_llm, parse_ocr,
+    ConversionOptions, Converter, apply_config, apply_user_config, parse_flavor, parse_format,
+    parse_llm, parse_ocr,
 };
 
 fn main() {
@@ -19,6 +20,7 @@ fn run() -> io::Result<()> {
     let mut input = None;
     let mut output = None;
     let mut options = ConversionOptions::default();
+    let _ = apply_user_config(&mut options)?;
     let mut extract_media_from_output = false;
 
     while let Some(arg) = args.next() {
@@ -63,9 +65,7 @@ fn run() -> io::Result<()> {
             "--config" => {
                 if let Some(value) = args.next() {
                     let config_path = PathBuf::from(value);
-                    let mut config_options = load_config(&config_path)?;
-                    config_options.config_path = Some(config_path);
-                    options = merge_options(config_options, options);
+                    apply_config(&mut options, &config_path)?;
                 }
             }
             "--allow-external-send" => options.consent_external_send = true,
@@ -127,26 +127,6 @@ fn run() -> io::Result<()> {
     Ok(())
 }
 
-fn merge_options(
-    base: ConversionOptions,
-    override_options: ConversionOptions,
-) -> ConversionOptions {
-    ConversionOptions {
-        flavor: override_options.flavor,
-        format: override_options.format,
-        extract_media: override_options.extract_media.or(base.extract_media),
-        inline_base64_media: override_options.inline_base64_media || base.inline_base64_media,
-        ocr: override_options.ocr,
-        llm: override_options.llm,
-        restructure: override_options.restructure || base.restructure,
-        translate: override_options.translate.or(base.translate),
-        report_path: override_options.report_path.or(base.report_path),
-        strict: override_options.strict || base.strict,
-        config_path: override_options.config_path.or(base.config_path),
-        consent_external_send: override_options.consent_external_send || base.consent_external_send,
-    }
-}
-
 fn media_dir_for_output(output_path: &std::path::Path) -> PathBuf {
     let mut media_dir = output_path.to_path_buf();
     media_dir.set_extension("");
@@ -171,6 +151,7 @@ Options:
   --report <PATH>             Write conversion report JSON
   --strict                    Treat warnings as errors
   --config <PATH>             Load atom.config.toml-style config
+                              User config is also read from ~/.atom/atom.config.toml
   --allow-external-send       Allow selected cloud LLM backend to receive input
   -V, --version               Print version
 "

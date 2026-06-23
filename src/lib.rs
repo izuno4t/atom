@@ -6,12 +6,13 @@ pub mod writers;
 
 pub use core::{
     AstNode, ConversionOptions, ConversionReport, ConversionResult, Flavor, LlmBackend,
-    MediaCandidate, OcrEngine, OutputFormat, TableCell, TableRow, load_config, parse_flavor,
-    parse_format, parse_llm, parse_ocr,
+    MediaCandidate, OcrEngine, OutputFormat, TableCell, TableRow, apply_config, apply_user_config,
+    load_config, parse_flavor, parse_format, parse_llm, parse_ocr, user_config_paths,
 };
+pub use integrations::wasm_plugin;
 pub use integrations::{llm, media, ocr};
 pub use parsers::ooxml::{docx, pptx, xlsx};
-pub use parsers::{html, ooxml, pdf};
+pub use parsers::{html, ooxml, opendocument, pdf};
 pub use pipeline::{Converter, convert_bytes, convert_reader};
 pub use writers::markdown;
 

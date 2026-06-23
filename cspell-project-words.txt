@@ -59,6 +59,7 @@ koma
 Kotlin
 kuzushiji
 LibreOffice
+llava
 lopdf
 Mammoth
 markdownlint

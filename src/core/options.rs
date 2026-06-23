@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Flavor {
     CommonMark,
@@ -48,6 +50,7 @@ pub struct ConversionOptions {
     pub strict: bool,
     pub config_path: Option<std::path::PathBuf>,
     pub consent_external_send: bool,
+    pub llm_prompts: BTreeMap<String, String>,
 }
 
 impl Default for ConversionOptions {
@@ -65,6 +68,7 @@ impl Default for ConversionOptions {
             strict: false,
             config_path: None,
             consent_external_send: false,
+            llm_prompts: BTreeMap::new(),
         }
     }
 }

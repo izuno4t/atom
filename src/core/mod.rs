@@ -7,7 +7,10 @@ mod report;
 mod text;
 
 pub use ast::{AstNode, TableCell, TableRow};
-pub use config::{load_config, parse_flavor, parse_format, parse_llm, parse_ocr};
+pub use config::{
+    apply_config, apply_user_config, load_config, parse_flavor, parse_format, parse_llm, parse_ocr,
+    user_config_paths,
+};
 pub(crate) use naming::{flavor_name, format_name, llm_destination, ocr_name};
 pub use options::{ConversionOptions, Flavor, LlmBackend, OcrEngine, OutputFormat};
 pub use report::{ConversionReport, ConversionResult, MediaCandidate};

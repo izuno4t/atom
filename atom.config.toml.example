@@ -2,3 +2,14 @@ flavor = "gfm"
 format = "markdown"
 strict = false
 consent_external_send = false
+
+# User-level config can be placed at ~/.atom/atom.config.toml.
+# Explicit CLI options override config values.
+
+# llm = "ollama:llama3"
+# restructure = true
+# translate = "ja"
+# llm.prompt_path.restructure = "prompts/restructure.md"
+# llm.prompt_path.translate = "prompts/translate.md"
+# llm.prompt_path.image-description = "prompts/image-description.md"
+# llm.prompt_path.ocr-postprocess = "prompts/ocr-postprocess.md"

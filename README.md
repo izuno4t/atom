@@ -67,6 +67,24 @@ atom input.html -o output.md --report report.json
 atom input.pdf --strict -o output.md
 ```
 
+LLMで見出し、リスト、表、画像参照、脚注などの構造を整える場合:
+
+```bash
+atom input.pdf --llm ollama:llama3 --restructure -o output.md
+```
+
+画像やイラストを説明文書にする場合:
+
+```bash
+atom diagram.png --llm ollama:llava -o output.md
+```
+
+テキストレイヤーのないPDFをOCRで読む場合:
+
+```bash
+atom scanned.pdf --ocr tesseract -o output.md
+```
+
 ## オプション
 
 | オプション | 説明 |
@@ -91,11 +109,75 @@ atom input.pdf --strict -o output.md
 例は [atom.config.toml.example](atom.config.toml.example) を参照してください。
 実際の `atom.config.toml` はローカル専用で、Git管理外です。
 
+ユーザー共通設定は次のどちらかに置けます。
+
+- `~/.atom/atom.config.toml`
+- `~/.atom/config.toml`
+
+優先順位は、明示したCLI引数、`--config <PATH>`、`~/.atom` 配下のユーザー共通設定、
+アプリ内の既定値の順です。
+
 ```toml
 flavor = "gfm"
 format = "markdown"
 strict = false
 consent_external_send = false
+llm = "ollama:llama3"
+llm.prompt_path.restructure = "prompts/restructure.md"
+llm.prompt_path.translate = "prompts/translate.md"
+llm.prompt_path.image-description = "prompts/image-description.md"
+llm.prompt_path.ocr-postprocess = "prompts/ocr-postprocess.md"
+```
+
+プロンプトをカスタマイズする場合は、設定ファイルへ本文を直接書かず、
+プロンプトファイルのパスを指定します。既定プロンプトはアプリ内の既定値を使います。
+相対パスは設定ファイルが置かれたディレクトリから解決されます。
+
+プロンプトファイルでは `{input}` に入力MarkdownやOCRテキスト、`{language}` に
+翻訳先言語が入ります。例えば `~/.atom/prompts/translate.md` を指定すると、
+翻訳時だけそのファイルを使えます。
+
+## LLM、画像、OCR
+
+### ローカルLLMで文書構造を整える
+
+`--restructure` は、通常の変換結果をLLMへ渡して、構造化されたMarkdownへ整えます。
+見出し、リスト、表、画像参照、コードブロック、脚注などの構造が失われた応答は
+採用されません。
+
+```bash
+atom report.pdf --llm ollama:llama3 --restructure -o report.md
+```
+
+### 画像やイラストをMarkdownにする
+
+画像ファイルを入力すると、VLMに画像の内容説明を依頼してMarkdownを生成します。
+ローカルのOllamaモデルを使う場合は外部送信の同意は不要です。
+
+```bash
+atom chart.png --llm ollama:llava -o chart.md
+```
+
+クラウドLLM/VLMへ画像や文書を送る場合は、必ず `--allow-external-send` が必要です。
+
+### OCRが必要なPDFを読む
+
+PDFにテキストレイヤーがない場合、`--ocr` を指定するとOCR fallbackを試します。
+OCR結果はPDFページ本文としてMarkdownへ統合されます。
+OCRエンジンには `ocr-rs`、`ndlocr-lite`、`ndl-koten`、`tesseract`、`surya`、
+または外部コマンド名を指定できます。
+
+```bash
+atom scanned.pdf --ocr tesseract -o scanned.md
+```
+
+`ocr-rs` を使う場合は、モデルファイルのパスを環境変数で指定します。
+
+```bash
+export ATOM_OCR_RS_DET_MODEL=/path/to/det.onnx
+export ATOM_OCR_RS_REC_MODEL=/path/to/rec.onnx
+export ATOM_OCR_RS_CHARSET=/path/to/charset.txt
+atom scanned.pdf --ocr ocr-rs -o scanned.md
 ```
 
 ## 対応状況
@@ -103,13 +185,14 @@ consent_external_send = false
 | 入力形式 | 状態 |
 | --- | --- |
 | HTML | 基本的な見出し、段落、リスト、コード、テーブルに対応 |
-| DOCX | OOXML の本文、見出し、リスト、画像、キャプション、テーブルを順次対応中 |
-| PDF | テキスト抽出とOCR連携のための境界を実装中 |
-| PPTX | OOXML スライドテキスト抽出を実装中 |
-| XLSX | OOXML シートテーブル抽出を実装中 |
+| DOCX | OOXML の本文、見出し、リスト、画像、キャプション、テーブルに対応 |
+| PDF | Rust組み込みバックエンドによるテキスト抽出、レイアウト推論、OCR fallback境界に対応 |
+| PPTX | OOXML スライドテキスト、リスト、視覚順読み出しに対応 |
+| XLSX | OOXML シートテーブル、結合セル、複数ヘッダーに対応 |
+| ODT / ODS / ODP | OpenDocument の `content.xml` から見出し、段落、表を抽出 |
 
-現在の実装は初期段階です。複雑なレイアウト、厳密なPDF構造復元、
-商用OCRエンジン連携、LLMプロバイダ呼び出しは継続実装中です。
+現在の実装では、複雑なPDFの完全な論理構造復元と、商用OCRエンジンの
+環境構築は継続実装中です。
 
 ## ローカル完結と外部送信
 
@@ -118,6 +201,7 @@ atom は、通常の変換では文書を外部へ送信しません。
 クラウド LLM を使う場合は、`--llm` に加えて
 `--allow-external-send` を指定してください。指定しない場合、外部送信が
 必要な LLM 処理はスキップされ、レポートに warning が残ります。
+`--strict` 時は、その warning がエラーとして扱われます。
 
 ローカル LLM を使う場合:
 
@@ -125,10 +209,24 @@ atom は、通常の変換では文書を外部へ送信しません。
 atom input.pdf --llm ollama:llama3 --restructure -o output.md
 ```
 
+画像入力をローカル VLM でMarkdown化する場合:
+
+```bash
+atom scan.png --llm ollama:llava -o output.md
+```
+
 クラウド LLM を明示的に許可する場合:
 
 ```bash
 atom input.pdf --llm claude-opus --restructure --allow-external-send -o output.md
+```
+
+OpenAI は `OPENAI_API_KEY`、Anthropic は `ANTHROPIC_API_KEY` を参照します。
+OpenAI互換endpointは次の形式で指定できます。
+
+```bash
+atom input.pdf --llm openai-compatible:local@https://llm.example.com/v1 \
+  --restructure --allow-external-send -o output.md
 ```
 
 ## 開発者向け

@@ -148,3 +148,35 @@ fn pdf_result_contains_extracted_text(result: &pdf::PdfParseResult) -> bool {
         | AstNode::RawHtml(_) => true,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ocr_text_replaces_pages_without_extractable_text() {
+        let page_texts = vec![
+            Vec::new(),
+            vec![pdf::PdfTextObject {
+                text: "native page text".to_string(),
+                font_size: None,
+                x: None,
+                y: None,
+            }],
+        ];
+        let ocr_by_page = BTreeMap::from([
+            (0, "OCR title\nOCR body".to_string()),
+            (1, "ignored".to_string()),
+        ]);
+
+        let objects = merge_pdf_page_text_with_ocr(page_texts, &ocr_by_page);
+
+        assert_eq!(
+            objects
+                .iter()
+                .map(|object| object.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["OCR title", "OCR body", "ignored"]
+        );
+    }
+}

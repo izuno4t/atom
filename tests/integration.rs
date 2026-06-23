@@ -1,6 +1,6 @@
 use anything_to_markdown::{
-    AstNode, ConversionOptions, Converter, Flavor, OutputFormat, TableCell, TableRow, docx,
-    markdown, ooxml,
+    AstNode, ConversionOptions, Converter, Flavor, LlmBackend, OutputFormat, TableCell, TableRow,
+    docx, markdown, ooxml,
 };
 use std::fs;
 use std::io::{Cursor, Write};
@@ -1245,6 +1245,108 @@ fn converts_ooxml_packages_with_parts_and_relationships() {
     );
     assert_eq!(xlsx_result.report.input_format, "xlsx");
     assert!(xlsx_result.markdown.contains("Region Summary"));
+}
+
+#[test]
+fn converts_opendocument_package_content_xml_to_markdown() {
+    let root = Path::new("target/opendocument-package-test");
+    let _ = fs::remove_dir_all(root);
+    fs::create_dir_all(root).unwrap();
+    fs::write(
+        root.join("content.xml"),
+        r#"<office:document-content>
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="1">Report</text:h>
+      <text:p>OpenDocument body</text:p>
+      <table:table>
+        <table:table-row>
+          <table:table-cell><text:p>Name</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Atom</text:p></table:table-cell>
+          <table:table-cell><text:p>Done</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>"#,
+    )
+    .unwrap();
+    let odt = root.join("sample.odt");
+    zip_fixture(root, &odt, &["content.xml"]);
+
+    let result = Converter::new().convert_file(&odt).unwrap();
+
+    assert_eq!(result.report.input_format, "odt");
+    assert!(result.markdown.contains("# Report"));
+    assert!(result.markdown.contains("OpenDocument body"));
+    assert!(result.markdown.contains("Atom"));
+    assert!(!result.markdown.contains("Unsupported input format"));
+}
+
+#[test]
+fn image_input_requires_vlm_backend_without_external_send_by_default() {
+    let root = Path::new("target/image-input-vlm-test");
+    let _ = fs::remove_dir_all(root);
+    fs::create_dir_all(root).unwrap();
+    let image = root.join("scan.png");
+    fs::write(&image, [0x89, b'P', b'N', b'G']).unwrap();
+
+    let result = Converter::new().convert_file(&image).unwrap();
+
+    assert_eq!(result.report.input_format, "png");
+    assert!(
+        result
+            .markdown
+            .contains("Unsupported input format: image input")
+    );
+    assert!(
+        result
+            .report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("requires --llm"))
+    );
+}
+
+#[test]
+fn image_input_does_not_send_to_cloud_vlm_without_consent() {
+    let root = Path::new("target/image-input-cloud-consent-test");
+    let _ = fs::remove_dir_all(root);
+    fs::create_dir_all(root).unwrap();
+    let image = root.join("scan.png");
+    fs::write(&image, [0x89, b'P', b'N', b'G']).unwrap();
+
+    let result = Converter::new()
+        .with_options(ConversionOptions {
+            llm: LlmBackend::OpenAi("gpt-4o".to_string()),
+            ..Default::default()
+        })
+        .convert_file(&image)
+        .unwrap();
+
+    assert_eq!(result.report.input_format, "png");
+    assert!(
+        result
+            .markdown
+            .contains("Unsupported input format: image input")
+    );
+    assert!(
+        result
+            .report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("external send consent is required"))
+    );
+    assert!(
+        result
+            .report
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("VLM image conversion skipped"))
+    );
 }
 
 fn zip_fixture(root: &Path, output: &Path, parts: &[&str]) {
