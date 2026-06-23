@@ -1,5 +1,10 @@
 # atom
 
+[![CI][ci-badge]][ci]
+[![Release][release-badge]][release]
+[![License][license-badge]][license]
+[![Rust][rust-badge]][rust]
+
 Anything to Markdown.
 
 atom is a command-line converter that turns HTML, PDF, Office, OpenDocument,
@@ -8,6 +13,29 @@ images, and scanned documents into structured Markdown.
 By default, atom does not send documents to external services. LLM, VLM, and
 cloud OCR features run only when you explicitly enable the relevant option and,
 for cloud providers, allow external sending.
+
+## Highlights
+
+- Convert common document formats into readable Markdown from one CLI.
+- Preserve structure such as headings, lists, tables, image references, code
+  blocks, and footnotes where the source format exposes them.
+- Use local-first LLM, VLM, and OCR workflows by default, with explicit consent
+  required before cloud providers receive document content.
+- Keep user defaults in `~/.atom/config.toml`, with task-specific prompt files
+  for restructuring, translation, image description, and OCR post-processing.
+
+## Input Coverage
+
+| Input | What atom extracts |
+| --- | --- |
+| HTML | Document structure, links, tables, code blocks, and images |
+| DOCX | OOXML body text, headings, lists, tables, images, and captions |
+| PDF | Built-in text extraction, layout inference, and OCR fallback boundary |
+| PPTX | Slide text, lists, and visual-order text boxes |
+| XLSX | Sheet tables, merged cells, and multi-header tables |
+| ODT / ODS / ODP | Content from OpenDocument `content.xml` |
+| Images | Markdown descriptions through a selected vision-capable backend |
+| Scanned documents | Text through configured OCR engines |
 
 Japanese documentation is available in [README.ja.md](README.ja.md).
 
@@ -229,18 +257,6 @@ Prompt files can use these placeholders:
 | `--config <PATH>` | Load an additional config file |
 | `--allow-external-send` | Allow selected cloud LLM/VLM input sending |
 
-## Supported Inputs
-
-| Input | Status |
-| --- | --- |
-| HTML | Headings, paragraphs, lists, code blocks, and tables |
-| DOCX | OOXML body text, headings, lists, images, captions, and tables |
-| PDF | Built-in text extraction, layout inference, and OCR fallback boundary |
-| PPTX | OOXML slide text, lists, and visual-order extraction |
-| XLSX | OOXML sheet tables, merged cells, and multi-header tables |
-| ODT / ODS / ODP | Headings, paragraphs, and tables from `content.xml` |
-| Images | Markdown descriptions through the selected vision-capable backend |
-
 ## External Sending
 
 Normal conversion does not send documents outside the machine.
@@ -254,3 +270,12 @@ error.
 
 Development setup, test commands, and release checks live in
 [CONTRIBUTE.md](CONTRIBUTE.md).
+
+[ci-badge]: https://github.com/izuno4t/atom/actions/workflows/ci.yml/badge.svg
+[ci]: https://github.com/izuno4t/atom/actions/workflows/ci.yml
+[license-badge]: https://img.shields.io/badge/license-MIT-blue.svg
+[license]: LICENSE
+[release-badge]: https://img.shields.io/github/v/release/izuno4t/atom?include_prereleases
+[release]: https://github.com/izuno4t/atom/releases
+[rust-badge]: https://img.shields.io/badge/Rust-2024-orange.svg
+[rust]: https://www.rust-lang.org/

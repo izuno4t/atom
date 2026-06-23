@@ -3,16 +3,21 @@ name: Release
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+
+permissions:
+  contents: write
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
       - name: Install documentation tools
@@ -32,7 +37,7 @@ jobs:
           - macos-latest
           - windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build --release --locked
@@ -58,13 +63,13 @@ jobs:
           copy config.toml.example dist\pkg\config.toml.example
           Compress-Archive -Path dist\pkg\* -DestinationPath dist\atom-Windows-${{ runner.arch }}.zip
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: atom-${{ runner.os }}
           path: dist/*
       - name: Publish release asset
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/*
 
@@ -81,7 +86,7 @@ jobs:
             echo "HOMEBREW_TAP_GITHUB_TOKEN is required to update izuno4t/homebrew-tap" >&2
             exit 1
           }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           name: atom-Linux
           path: dist

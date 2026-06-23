@@ -9,6 +9,8 @@ fn release_workflow_builds_cross_platform_artifacts() {
         "ubuntu-latest",
         "macos-latest",
         "windows-latest",
+        "permissions:",
+        "contents: write",
         "make verify",
         "cargo build --release --locked",
         "config.toml.example",
