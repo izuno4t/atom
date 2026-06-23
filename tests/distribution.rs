@@ -18,6 +18,8 @@ fn release_workflow_builds_cross_platform_artifacts() {
         "atom-${version}-source.tar.gz.sha256",
         "update-homebrew-tap",
         "HOMEBREW_TAP_GITHUB_TOKEN",
+        "version=\"$(sed -n",
+        "release_tag=\"v${version}\"",
         "gh release upload",
         "List packages",
         "Formula/atom.rb",
