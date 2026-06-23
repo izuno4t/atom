@@ -55,10 +55,34 @@ fn release_workflow_builds_cross_platform_artifacts() {
 fn ci_workflow_uses_current_node_actions() {
     let workflow = fs::read_to_string(".github/workflows/ci.yml").expect("CI workflow must exist");
 
-    for required in ["actions/checkout@v5", "actions/setup-node@v5"] {
+    for required in [
+        "actions/checkout@v5",
+        "actions/setup-node@v5",
+        "paths:",
+        "- \"**\"",
+        "- \"!**/*.md\"",
+        "- \"tests/fixtures/**/*.expected.md\"",
+    ] {
         assert!(
             workflow.contains(required),
             "CI workflow must contain {required}"
+        );
+    }
+
+    assert_eq!(
+        workflow.matches("paths:").count(),
+        2,
+        "CI workflow must filter doc-only changes for pull_request and main push"
+    );
+
+    for forbidden in [
+        "paths-ignore:",
+        "tests/fixtures/**/*.html",
+        "config.toml.example",
+    ] {
+        assert!(
+            !workflow.contains(forbidden),
+            "CI workflow must not ignore build or test inputs via {forbidden}"
         );
     }
 

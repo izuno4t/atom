@@ -2,9 +2,17 @@ name: CI
 
 on:
   pull_request:
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "tests/fixtures/**/*.expected.md"
   push:
     branches:
       - main
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "tests/fixtures/**/*.expected.md"
 
 jobs:
   test:
