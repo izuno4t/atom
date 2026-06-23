@@ -1,11 +1,13 @@
-# atom
+# atom ✨
 
 [![CI][ci-badge]][ci]
 [![Release][release-badge]][release]
+[![Homebrew][homebrew-badge]][homebrew]
 [![License][license-badge]][license]
 [![Rust][rust-badge]][rust]
+[![Platforms][platforms-badge]][release]
 
-Anything to Markdown.
+📄 Anything to Markdown, from local files to LLM-assisted document cleanup.
 
 atom is a command-line converter that turns HTML, PDF, Office, OpenDocument,
 images, and scanned documents into structured Markdown.
@@ -14,17 +16,36 @@ By default, atom does not send documents to external services. LLM, VLM, and
 cloud OCR features run only when you explicitly enable the relevant option and,
 for cloud providers, allow external sending.
 
-## Highlights
+Use atom when you need to move messy source material into clean Markdown:
 
-- Convert common document formats into readable Markdown from one CLI.
-- Preserve structure such as headings, lists, tables, image references, code
-  blocks, and footnotes where the source format exposes them.
-- Use local-first LLM, VLM, and OCR workflows by default, with explicit consent
-  required before cloud providers receive document content.
-- Keep user defaults in `~/.atom/config.toml`, with task-specific prompt files
-  for restructuring, translation, image description, and OCR post-processing.
+- 📚 Archive HTML, PDF, DOCX, PPTX, XLSX, and OpenDocument files as readable
+  Markdown.
+- 🧱 Preserve headings, lists, tables, image references, code blocks, and
+  footnotes when the source exposes them.
+- 🖼️ Generate Markdown descriptions from diagrams, screenshots, and illustrations
+  with a selected VLM.
+- 🔎 Run OCR for scanned PDFs or images and write the recognized text as
+  Markdown.
+- 🪄 Ask a configured LLM to restructure or translate converted Markdown.
 
-## Input Coverage
+```bash
+atom report.pdf --ocr auto --llm ollama:llama3 --restructure -o report.md
+```
+
+## ✨ Highlights
+
+- 📦 Broad input support from web pages and office documents to images and scanned
+  PDFs.
+- 🏠 Local-first defaults for document conversion, LLM restructuring, VLM image
+  description, and OCR.
+- 🔐 Explicit external-send consent before cloud LLM/VLM providers receive
+  document text or image bytes.
+- ⚙️ User-level configuration in `~/.atom/config.toml`, with task-specific prompt
+  files for restructuring, translation, image description, and OCR cleanup.
+- 🚀 Release packages for macOS, Linux, and Windows, plus Homebrew installation
+  on macOS.
+
+## 🧭 Input Coverage
 
 | Input | What atom extracts |
 | --- | --- |
@@ -37,11 +58,11 @@ for cloud providers, allow external sending.
 | Images | Markdown descriptions through a selected vision-capable backend |
 | Scanned documents | Text through configured OCR engines |
 
-Japanese documentation is available in [README.ja.md](README.ja.md).
+🇯🇵 Japanese documentation is available in [README.ja.md](README.ja.md).
 
-## Install
+## 🚀 Install
 
-### macOS
+### 🍎 macOS
 
 Install with Homebrew:
 
@@ -57,7 +78,7 @@ mkdir -p ~/.atom
 cp "$(brew --prefix)/share/atom/config.toml.example" ~/.atom/config.toml
 ```
 
-### Linux and Windows
+### 🐧 Linux and 🪟 Windows
 
 Download the ZIP archive for your platform from the
 [latest GitHub release](https://github.com/izuno4t/atom/releases/latest).
@@ -71,7 +92,7 @@ Copy the included `config.toml.example` to `~/.atom/config.toml` when you want
 user-level defaults. The example file is also kept in this repository as
 [config.toml.example](config.toml.example).
 
-## Quick Start
+## ⚡ Quick Start
 
 Convert to standard output:
 
@@ -104,9 +125,42 @@ Treat warnings as errors:
 atom input.pdf --strict -o output.md
 ```
 
-## LLM, Images, and OCR
+Common workflows:
 
-### Provider Setup
+- 📄 Convert a DOCX report.
+
+  ```bash
+  atom report.docx -o report.md
+  ```
+
+- 🔎 Extract a PDF with OCR fallback.
+
+  ```bash
+  atom scanned.pdf --ocr auto -o scanned.md
+  ```
+
+- 🖼️ Describe an image locally.
+
+  ```bash
+  atom diagram.png --llm ollama:llava -o diagram.md
+  ```
+
+- 🪄 Restructure converted Markdown.
+
+  ```bash
+  atom input.pdf --llm ollama:llama3 --restructure -o output.md
+  ```
+
+- 🌐 Translate with a cloud model.
+
+  ```bash
+  atom input.docx --llm gpt-4o-mini --translate ja \
+    --allow-external-send -o output.md
+  ```
+
+## 🧠 LLM, Images, and OCR
+
+### 🔌 Provider Setup
 
 Choose the LLM/VLM backend with `--llm`.
 
@@ -152,7 +206,7 @@ atom input.pdf --llm openai-compatible:gateway@https://llm.example.com/v1 \
   --restructure --allow-external-send -o output.md
 ```
 
-### Restructure Converted Documents
+### 🪄 Restructure Converted Documents
 
 `--restructure` sends the converted Markdown to the selected LLM and asks it to
 preserve structural attributes such as headings, lists, tables, image
@@ -164,7 +218,7 @@ Local Ollama example:
 atom input.pdf --llm ollama:llama3 --restructure -o output.md
 ```
 
-### Generate Markdown from Images
+### 🖼️ Generate Markdown from Images
 
 When the input is an image, atom asks the selected vision-capable LLM/VLM to
 describe the visible content as Markdown.
@@ -181,7 +235,7 @@ Cloud VLM example:
 atom scan.png --llm gemini:gemini-2.5-flash --allow-external-send -o scan.md
 ```
 
-### Convert Scanned Documents with OCR
+### 🔎 Convert Scanned Documents with OCR
 
 Use `--ocr` when a PDF or image needs text recognition.
 
@@ -193,7 +247,7 @@ Supported OCR selectors are `auto`, `ocr-rs`, `ndlocr-lite`, `ndl-koten`,
 `tesseract`, `surya`, `none`, or an external command name. External OCR engines
 must be installed separately and are reported clearly when missing.
 
-## Configuration
+## ⚙️ Configuration
 
 atom reads one user-level configuration file:
 
@@ -239,7 +293,7 @@ Prompt files can use these placeholders:
 | `{markdown}` | alias for `{input}` |
 | `{language}` | translation target for `--translate` |
 
-## Options
+## 🧰 Options
 
 | Option | Description |
 | --- | --- |
@@ -257,7 +311,7 @@ Prompt files can use these placeholders:
 | `--config <PATH>` | Load an additional config file |
 | `--allow-external-send` | Allow selected cloud LLM/VLM input sending |
 
-## External Sending
+## 🔐 External Sending
 
 Normal conversion does not send documents outside the machine.
 
@@ -266,15 +320,18 @@ Cloud LLM/VLM processing is skipped unless `--allow-external-send` or
 warning in the conversion report. With `--strict`, that warning becomes an
 error.
 
-## Contributing
+## 🤝 Contributing
 
 Development setup, test commands, and release checks live in
 [CONTRIBUTE.md](CONTRIBUTE.md).
 
 [ci-badge]: https://github.com/izuno4t/atom/actions/workflows/ci.yml/badge.svg
 [ci]: https://github.com/izuno4t/atom/actions/workflows/ci.yml
+[homebrew-badge]: https://img.shields.io/badge/Homebrew-izuno4t%2Ftap-fbb040.svg
+[homebrew]: https://github.com/izuno4t/homebrew-tap
 [license-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [license]: LICENSE
+[platforms-badge]: https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-4c6fff.svg
 [release-badge]: https://img.shields.io/github/v/release/izuno4t/atom?include_prereleases
 [release]: https://github.com/izuno4t/atom/releases
 [rust-badge]: https://img.shields.io/badge/Rust-2024-orange.svg
