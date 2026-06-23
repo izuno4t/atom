@@ -11,7 +11,7 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn atom_config_toml_loads_core_conversion_options() {
-    let path = Path::new("target/config-test/atom.config.toml");
+    let path = Path::new("target/config-test/config.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(
         path.parent().unwrap().join("restructure.prompt.txt"),
@@ -54,6 +54,18 @@ fn parse_llm_accepts_openai_compatible_endpoint() {
             name: "local".to_string(),
             endpoint: "https://llm.example.test/v1".to_string(),
         }
+    );
+}
+
+#[test]
+fn parse_llm_accepts_gemini_models() {
+    assert_eq!(
+        parse_llm("gemini:gemini-2.5-flash"),
+        LlmBackend::Gemini("gemini-2.5-flash".to_string())
+    );
+    assert_eq!(
+        parse_llm("gemini-2.5-pro"),
+        LlmBackend::Gemini("gemini-2.5-pro".to_string())
     );
 }
 
@@ -101,8 +113,7 @@ fn user_config_paths_uses_atom_home_directory() {
 
     let paths = user_config_paths();
 
-    assert_eq!(paths[0], root.join("atom.config.toml"));
-    assert_eq!(paths[1], root.join("config.toml"));
+    assert_eq!(paths, vec![root.join("config.toml")]);
 }
 
 #[test]
@@ -113,7 +124,7 @@ fn apply_user_config_reads_first_existing_atom_home_config() {
     fs::create_dir_all(root).unwrap();
     fs::write(root.join("image.prompt.txt"), "Describe image: {input}").unwrap();
     fs::write(
-        root.join("atom.config.toml"),
+        root.join("config.toml"),
         r#"
 llm = "ollama:gemma"
 llm_prompt_path_image_description = "image.prompt.txt"
@@ -127,7 +138,7 @@ llm_prompt_path_image_description = "image.prompt.txt"
 
     let loaded = apply_user_config(&mut options).unwrap();
 
-    assert_eq!(loaded, Some(root.join("atom.config.toml")));
+    assert_eq!(loaded, Some(root.join("config.toml")));
     assert_eq!(options.llm, LlmBackend::Ollama("gemma".to_string()));
     assert_eq!(
         options

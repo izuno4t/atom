@@ -117,6 +117,10 @@ fn llm_backend_names_cover_supported_providers() {
         "openai"
     );
     assert_eq!(
+        llm::backend_name(&LlmBackend::Gemini("gemini-2.5-flash".to_string())),
+        "gemini"
+    );
+    assert_eq!(
         llm::backend_name(&LlmBackend::Ollama("llama3".to_string())),
         "ollama"
     );

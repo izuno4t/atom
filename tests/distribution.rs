@@ -10,11 +10,31 @@ fn release_workflow_builds_cross_platform_artifacts() {
         "macos-latest",
         "windows-latest",
         "cargo build --release",
+        "config.toml.example",
+        "Compress-Archive",
+        "zip -r",
         "actions/upload-artifact",
+        "softprops/action-gh-release",
     ] {
         assert!(
             workflow.contains(required),
             "release workflow must contain {required}"
+        );
+    }
+}
+
+#[test]
+fn make_install_installs_config_example_for_packagers() {
+    let makefile = fs::read_to_string("Makefile").expect("Makefile must exist");
+
+    for required in [
+        "SHARE_DIR",
+        "install config.toml.example",
+        "$(SHARE_DIR)/config.toml.example",
+    ] {
+        assert!(
+            makefile.contains(required),
+            "Makefile must contain {required}"
         );
     }
 }

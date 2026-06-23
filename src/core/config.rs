@@ -81,10 +81,7 @@ pub fn user_config_paths() -> Vec<PathBuf> {
     let Some(atom_home) = atom_home else {
         return Vec::new();
     };
-    vec![
-        atom_home.join("atom.config.toml"),
-        atom_home.join("config.toml"),
-    ]
+    vec![atom_home.join("config.toml")]
 }
 
 pub fn parse_flavor(value: &str) -> Option<Flavor> {
@@ -124,6 +121,8 @@ pub fn parse_llm(value: &str) -> LlmBackend {
         LlmBackend::None
     } else if let Some(model) = value.strip_prefix("ollama:") {
         LlmBackend::Ollama(model.to_string())
+    } else if let Some(model) = value.strip_prefix("gemini:") {
+        LlmBackend::Gemini(model.to_string())
     } else if let Some(value) = value.strip_prefix("openai-compatible:") {
         if let Some((name, endpoint)) = value.split_once('@') {
             LlmBackend::OpenAiCompatible {
@@ -136,6 +135,8 @@ pub fn parse_llm(value: &str) -> LlmBackend {
                 endpoint: value.to_string(),
             }
         }
+    } else if value.starts_with("gemini-") {
+        LlmBackend::Gemini(value.to_string())
     } else if value.starts_with("gpt-") {
         LlmBackend::OpenAi(value.to_string())
     } else if value.starts_with("claude-") {

@@ -2,120 +2,185 @@
 
 Anything to Markdown.
 
-atom は、HTML、PDF、Office 文書などを、人が読みやすい構造化
-Markdown に変換するための CLI ツールです。
+atom is a command-line converter that turns HTML, PDF, Office, OpenDocument,
+images, and scanned documents into structured Markdown.
 
-デフォルトでは外部 API に文書を送信しません。LLM を使った再構造化や
-翻訳は明示的に有効化した場合だけ実行されます。
+By default, atom does not send documents to external services. LLM, VLM, and
+cloud OCR features run only when you explicitly enable the relevant option and,
+for cloud providers, allow external sending.
 
-## 特徴
+Japanese documentation is available in [README.ja.md](README.ja.md).
 
-- 1つのコマンドで複数形式の文書を Markdown に変換
-- CommonMark、GFM、markdownlint 準拠などの方言を選択可能
-- 複雑なテーブルは Markdown 表に無理に押し込まず HTML table に退避
-- 変換時の警告、メタデータ、処理時間を JSON report として出力
-- OCR と LLM はオプション扱いで、ローカル完結を優先
+## Install
 
-## インストール
+### macOS
 
-Rust が入っている環境では、リポジトリからそのままビルドできます。
+Install with Homebrew:
 
 ```bash
-cargo build --release
+brew tap izuno4t/atom
+brew install atom
 ```
 
-開発環境を揃えたい場合は、Dev Containers を利用できます。
+The Homebrew package installs the example config under `share/atom`:
 
 ```bash
-code .
+mkdir -p ~/.atom
+cp "$(brew --prefix)/share/atom/config.toml.example" ~/.atom/config.toml
 ```
 
-VS Code で開いたあと、`Reopen in Container` を選択してください。
-コンテナには Rust、make、just、Poppler、Tesseract、LibreOffice などが
-含まれます。
+### Linux and Windows
 
-## 基本的な使い方
+Download the ZIP archive for your platform from the
+[latest GitHub release](https://github.com/izuno4t/atom/releases/latest).
 
-標準出力へ変換結果を出す場合:
+Each release ZIP contains:
+
+- the `atom` executable, or `atom.exe` on Windows
+- `config.toml.example`
+
+Copy the included `config.toml.example` to `~/.atom/config.toml` when you want
+user-level defaults. The example file is also kept in this repository as
+[config.toml.example](config.toml.example).
+
+## Quick Start
+
+Convert to standard output:
 
 ```bash
 atom input.html
 ```
 
-ファイルへ保存する場合:
+Write Markdown to a file:
 
 ```bash
 atom input.docx -o output.md
 ```
 
-Markdown 方言を指定する場合:
+Choose a Markdown flavor:
 
 ```bash
 atom input.html --flavor gfm -o output.md
 atom input.docx --flavor markdownlint -o output.md
 ```
 
-変換レポートを JSON で保存する場合:
+Save a JSON conversion report:
 
 ```bash
 atom input.html -o output.md --report report.json
 ```
 
-警告をエラーとして扱う場合:
+Treat warnings as errors:
 
 ```bash
 atom input.pdf --strict -o output.md
 ```
 
-LLMで見出し、リスト、表、画像参照、脚注などの構造を整える場合:
+## LLM, Images, and OCR
+
+### Provider Setup
+
+Choose the LLM/VLM backend with `--llm`.
+
+API keys are read from environment variables, not from `~/.atom/config.toml`.
+Keep provider choice, model names, and prompt file paths in config; keep
+secrets in your shell, CI, or secret manager to prevent credential leakage.
+atom uses `ATOM_*` environment variable names so it does not accidentally reuse
+API keys configured for other tools. Avoid typing secret values directly into
+commands because shell history may record them.
+
+| Provider | Selector | Env var |
+| --- | --- | --- |
+| Ollama | `ollama:<model>` | Not required |
+| OpenAI API | `gpt-*` | `ATOM_OPENAI_API_KEY` |
+| Anthropic | `claude-*` | `ATOM_ANTHROPIC_API_KEY` |
+| Gemini | `gemini:<model>` or `gemini-*` | `ATOM_GEMINI_API_KEY` |
+| OpenAI-compatible | `openai-compatible:*` | `ATOM_OPENAI_COMPATIBLE_API_KEY` |
+
+Cloud providers require `--allow-external-send` because document text and,
+for image input, image bytes are sent to the selected provider.
+
+Use `openai-compatible:<name>@<endpoint>` for OpenAI-compatible gateways.
+
+OpenAI API:
+
+```bash
+atom input.pdf --llm gpt-4o-mini --restructure --allow-external-send -o output.md
+```
+
+Gemini:
+
+```bash
+atom input.pdf --llm gemini:gemini-2.5-flash --restructure \
+  --allow-external-send -o output.md
+```
+
+OpenAI-compatible gateways are for services that expose the OpenAI chat
+completions API shape. A generic OpenAPI schema is not enough; the endpoint
+must accept OpenAI-compatible chat completion requests.
+
+```bash
+atom input.pdf --llm openai-compatible:gateway@https://llm.example.com/v1 \
+  --restructure --allow-external-send -o output.md
+```
+
+### Restructure Converted Documents
+
+`--restructure` sends the converted Markdown to the selected LLM and asks it to
+preserve structural attributes such as headings, lists, tables, image
+references, code blocks, and footnotes.
+
+Local Ollama example:
 
 ```bash
 atom input.pdf --llm ollama:llama3 --restructure -o output.md
 ```
 
-画像やイラストを説明文書にする場合:
+### Generate Markdown from Images
+
+When the input is an image, atom asks the selected vision-capable LLM/VLM to
+describe the visible content as Markdown.
+
+Local VLM example:
 
 ```bash
-atom diagram.png --llm ollama:llava -o output.md
+atom diagram.png --llm ollama:llava -o diagram.md
 ```
 
-テキストレイヤーのないPDFをOCRで読む場合:
+Cloud VLM example:
 
 ```bash
-atom scanned.pdf --ocr tesseract -o output.md
+atom scan.png --llm gemini:gemini-2.5-flash --allow-external-send -o scan.md
 ```
 
-## オプション
+### Convert Scanned Documents with OCR
 
-| オプション | 説明 |
-| --- | --- |
-| `-o, --output <PATH>` | 出力先。省略時は標準出力 |
-| `-f, --format <FMT>` | 出力形式。`md`、`mdx`、`html` |
-| `--flavor <FLAVOR>` | Markdown 方言を指定 |
-| `--extract-media <DIR>` | 画像などのメディア抽出先 |
-| `--inline-base64-media` | 対応可能なメディアを Base64 埋め込み |
-| `--ocr <ENGINE>` | OCR エンジンを指定 |
-| `--llm <MODEL>` | LLM バックエンド。`claude-*`、`gpt-*`、`ollama:*`、`none` |
-| `--restructure` | LLM で構造を再整形 |
-| `--translate <LANG>` | LLM で指定言語へ翻訳 |
-| `--report <PATH>` | 変換レポート JSON の保存先 |
-| `--strict` | warning をエラーとして扱う |
-| `--config <PATH>` | 設定ファイルを読み込む |
-| `--allow-external-send` | クラウド LLM への送信を許可 |
+Use `--ocr` when a PDF or image needs text recognition.
 
-## 設定ファイル
+```bash
+atom scanned.pdf --ocr tesseract -o scanned.md
+```
 
-設定ファイルは TOML 風の `key = "value"` 形式です。
-例は [atom.config.toml.example](atom.config.toml.example) を参照してください。
-実際の `atom.config.toml` はローカル専用で、Git管理外です。
+Supported OCR selectors are `auto`, `ocr-rs`, `ndlocr-lite`, `ndl-koten`,
+`tesseract`, `surya`, `none`, or an external command name. External OCR engines
+must be installed separately and are reported clearly when missing.
 
-ユーザー共通設定は次のどちらかに置けます。
+## Configuration
 
-- `~/.atom/atom.config.toml`
-- `~/.atom/config.toml`
+atom reads one user-level configuration file:
 
-優先順位は、明示したCLI引数、`--config <PATH>`、`~/.atom` 配下のユーザー共通設定、
-アプリ内の既定値の順です。
+```text
+~/.atom/config.toml
+```
+
+Configuration is applied in this order; later values override earlier values:
+
+1. built-in defaults
+2. `~/.atom/config.toml`
+3. `--config <PATH>`
+4. explicit CLI options
+
+The config format is a simple TOML-style `key = "value"` file:
 
 ```toml
 flavor = "gfm"
@@ -129,142 +194,63 @@ llm.prompt_path.image-description = "prompts/image-description.md"
 llm.prompt_path.ocr-postprocess = "prompts/ocr-postprocess.md"
 ```
 
-プロンプトをカスタマイズする場合は、設定ファイルへ本文を直接書かず、
-プロンプトファイルのパスを指定します。既定プロンプトはアプリ内の既定値を使います。
-相対パスは設定ファイルが置かれたディレクトリから解決されます。
+Prompt paths are resolved from the directory that contains the config file.
 
-プロンプトファイルでは `{input}` に入力MarkdownやOCRテキスト、`{language}` に
-翻訳先言語が入ります。例えば `~/.atom/prompts/translate.md` を指定すると、
-翻訳時だけそのファイルを使えます。
-
-## LLM、画像、OCR
-
-### ローカルLLMで文書構造を整える
-
-`--restructure` は、通常の変換結果をLLMへ渡して、構造化されたMarkdownへ整えます。
-見出し、リスト、表、画像参照、コードブロック、脚注などの構造が失われた応答は
-採用されません。
-
-```bash
-atom report.pdf --llm ollama:llama3 --restructure -o report.md
-```
-
-### 画像やイラストをMarkdownにする
-
-画像ファイルを入力すると、VLMに画像の内容説明を依頼してMarkdownを生成します。
-ローカルのOllamaモデルを使う場合は外部送信の同意は不要です。
-
-```bash
-atom chart.png --llm ollama:llava -o chart.md
-```
-
-クラウドLLM/VLMへ画像や文書を送る場合は、必ず `--allow-external-send` が必要です。
-
-### OCRが必要なPDFを読む
-
-PDFにテキストレイヤーがない場合、`--ocr` を指定するとOCR fallbackを試します。
-OCR結果はPDFページ本文としてMarkdownへ統合されます。
-OCRエンジンには `ocr-rs`、`ndlocr-lite`、`ndl-koten`、`tesseract`、`surya`、
-または外部コマンド名を指定できます。
-
-```bash
-atom scanned.pdf --ocr tesseract -o scanned.md
-```
-
-`ocr-rs` を使う場合は、モデルファイルのパスを環境変数で指定します。
-
-```bash
-export ATOM_OCR_RS_DET_MODEL=/path/to/det.onnx
-export ATOM_OCR_RS_REC_MODEL=/path/to/rec.onnx
-export ATOM_OCR_RS_CHARSET=/path/to/charset.txt
-atom scanned.pdf --ocr ocr-rs -o scanned.md
-```
-
-## 対応状況
-
-| 入力形式 | 状態 |
+| Prompt path key | Used when |
 | --- | --- |
-| HTML | 基本的な見出し、段落、リスト、コード、テーブルに対応 |
-| DOCX | OOXML の本文、見出し、リスト、画像、キャプション、テーブルに対応 |
-| PDF | Rust組み込みバックエンドによるテキスト抽出、レイアウト推論、OCR fallback境界に対応 |
-| PPTX | OOXML スライドテキスト、リスト、視覚順読み出しに対応 |
-| XLSX | OOXML シートテーブル、結合セル、複数ヘッダーに対応 |
-| ODT / ODS / ODP | OpenDocument の `content.xml` から見出し、段落、表を抽出 |
+| `llm.prompt_path.restructure` | `--restructure` rewrites converted Markdown |
+| `llm.prompt_path.translate` | `--translate <LANG>` translates Markdown |
+| `llm.prompt_path.image-description` | image input or VLM captioning |
+| `llm.prompt_path.ocr-postprocess` | OCR text cleanup before Markdown output |
 
-現在の実装では、複雑なPDFの完全な論理構造復元と、商用OCRエンジンの
-環境構築は継続実装中です。
+Prompt files can use these placeholders:
 
-## ローカル完結と外部送信
+| Placeholder | Meaning |
+| --- | --- |
+| `{input}` | source Markdown, OCR text, or image context |
+| `{markdown}` | alias for `{input}` |
+| `{language}` | translation target for `--translate` |
 
-atom は、通常の変換では文書を外部へ送信しません。
+## Options
 
-クラウド LLM を使う場合は、`--llm` に加えて
-`--allow-external-send` を指定してください。指定しない場合、外部送信が
-必要な LLM 処理はスキップされ、レポートに warning が残ります。
-`--strict` 時は、その warning がエラーとして扱われます。
+| Option | Description |
+| --- | --- |
+| `-o, --output <PATH>` | Output path. stdout when omitted |
+| `-f, --format <FMT>` | Output format: `md`, `mdx`, `html` |
+| `--flavor <FLAVOR>` | Markdown flavor |
+| `--extract-media <DIR>` | Media extraction destination |
+| `--inline-base64-media` | Embed supported media as Base64 |
+| `--ocr <ENGINE>` | OCR engine selector |
+| `--llm <MODEL>` | LLM backend selector |
+| `--restructure` | Restructure Markdown with the selected LLM |
+| `--translate <LANG>` | Translate Markdown with the selected LLM |
+| `--report <PATH>` | Write conversion report JSON |
+| `--strict` | Treat warnings as errors |
+| `--config <PATH>` | Load an additional config file |
+| `--allow-external-send` | Allow selected cloud LLM/VLM input sending |
 
-ローカル LLM を使う場合:
+## Supported Inputs
 
-```bash
-atom input.pdf --llm ollama:llama3 --restructure -o output.md
-```
+| Input | Status |
+| --- | --- |
+| HTML | Headings, paragraphs, lists, code blocks, and tables |
+| DOCX | OOXML body text, headings, lists, images, captions, and tables |
+| PDF | Built-in text extraction, layout inference, and OCR fallback boundary |
+| PPTX | OOXML slide text, lists, and visual-order extraction |
+| XLSX | OOXML sheet tables, merged cells, and multi-header tables |
+| ODT / ODS / ODP | Headings, paragraphs, and tables from `content.xml` |
+| Images | Markdown descriptions through the selected vision-capable backend |
 
-画像入力をローカル VLM でMarkdown化する場合:
+## External Sending
 
-```bash
-atom scan.png --llm ollama:llava -o output.md
-```
+Normal conversion does not send documents outside the machine.
 
-クラウド LLM を明示的に許可する場合:
+Cloud LLM/VLM processing is skipped unless `--allow-external-send` or
+`consent_external_send = true` is configured. When skipped, atom records a
+warning in the conversion report. With `--strict`, that warning becomes an
+error.
 
-```bash
-atom input.pdf --llm claude-opus --restructure --allow-external-send -o output.md
-```
+## Contributing
 
-OpenAI は `OPENAI_API_KEY`、Anthropic は `ANTHROPIC_API_KEY` を参照します。
-OpenAI互換endpointは次の形式で指定できます。
-
-```bash
-atom input.pdf --llm openai-compatible:local@https://llm.example.com/v1 \
-  --restructure --allow-external-send -o output.md
-```
-
-## 開発者向け
-
-よく使うコマンドは `make` から実行できます。
-
-```bash
-make test
-make lint
-make clippy
-make verify
-```
-
-固定fixtureの回帰確認はCIにも含まれます。
-
-```bash
-make regression-test
-```
-
-実文書評価と性能確認はCIとは分けて実行します。
-
-```bash
-make bench
-```
-
-`just` を使う場合も同等の入口があります。
-
-```bash
-just test
-just eval
-```
-
-要件と実行計画は以下を参照してください。
-
-- [docs/requirements.md](docs/requirements.md)
-- [docs/implementation-plan.md](docs/implementation-plan.md)
-- [docs/tasks.md](docs/tasks.md)
-
-## ライセンス
-
-[LICENSE](LICENSE) を参照してください。
+Development setup, test commands, and release checks live in
+[CONTRIBUTE.md](CONTRIBUTE.md).

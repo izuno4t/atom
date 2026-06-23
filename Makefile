@@ -1,4 +1,5 @@
 INSTALL_DIR ?= $(HOME)/bin
+SHARE_DIR ?= $(INSTALL_DIR)/../share/atom
 PDF_PROBE_INPUT ?=
 
 .PHONY: default test regression-test bench pdf-probe review verify ci fmt lint spell clippy install
@@ -9,6 +10,8 @@ install:
 	cargo build --release -p anything-to-markdown --bin atom
 	install -d "$(INSTALL_DIR)"
 	install target/release/atom "$(INSTALL_DIR)/atom"
+	install -d "$(SHARE_DIR)"
+	install config.toml.example "$(SHARE_DIR)/config.toml.example"
 
 test:
 	cargo test --workspace

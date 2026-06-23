@@ -34,6 +34,7 @@ pub(crate) fn llm_destination(llm: &LlmBackend) -> Option<String> {
     match llm {
         LlmBackend::None => None,
         LlmBackend::Anthropic(_) => Some("Anthropic".to_string()),
+        LlmBackend::Gemini(_) => Some("Gemini".to_string()),
         LlmBackend::OpenAi(_) => Some("OpenAI".to_string()),
         LlmBackend::Ollama(_) => Some("local".to_string()),
         LlmBackend::OpenAiCompatible { endpoint, .. } if !endpoint.is_empty() => {

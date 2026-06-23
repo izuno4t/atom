@@ -31,6 +31,7 @@ pub enum OcrEngine {
 pub enum LlmBackend {
     None,
     Anthropic(String),
+    Gemini(String),
     OpenAi(String),
     Ollama(String),
     OpenAiCompatible { name: String, endpoint: String },

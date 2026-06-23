@@ -25,15 +25,25 @@ jobs:
       - name: Package Unix
         if: runner.os != 'Windows'
         run: |
-          mkdir -p dist
-          cp target/release/atom dist/atom-${{ runner.os }}
+          mkdir -p dist/pkg
+          cp target/release/atom dist/pkg/atom
+          cp config.toml.example dist/pkg/config.toml.example
+          cd dist/pkg
+          zip -r ../atom-${{ runner.os }}-${{ runner.arch }}.zip atom config.toml.example
       - name: Package Windows
         if: runner.os == 'Windows'
         run: |
-          mkdir dist
-          copy target\release\atom.exe dist\atom-Windows.exe
+          mkdir dist\pkg
+          copy target\release\atom.exe dist\pkg\atom.exe
+          copy config.toml.example dist\pkg\config.toml.example
+          Compress-Archive -Path dist\pkg\* -DestinationPath dist\atom-Windows-${{ runner.arch }}.zip
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: atom-${{ runner.os }}
-          path: dist/*
+          path: dist/*.zip
+      - name: Publish release asset
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip

@@ -3,13 +3,21 @@ format = "markdown"
 strict = false
 consent_external_send = false
 
-# User-level config can be placed at ~/.atom/atom.config.toml.
+# User-level config can be placed at ~/.atom/config.toml.
 # Explicit CLI options override config values.
 
 # llm = "ollama:llama3"
 # restructure = true
 # translate = "ja"
+
+# Used by --restructure.
 # llm.prompt_path.restructure = "prompts/restructure.md"
+
+# Used by --translate <LANG>.
 # llm.prompt_path.translate = "prompts/translate.md"
+
+# Used for image input and VLM image captioning.
 # llm.prompt_path.image-description = "prompts/image-description.md"
+
+# Used when OCR text is post-processed before Markdown output.
 # llm.prompt_path.ocr-postprocess = "prompts/ocr-postprocess.md"

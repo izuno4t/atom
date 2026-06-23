@@ -48,14 +48,20 @@ impl LlmProvider for DefaultLlmProvider {
             LlmBackend::OpenAi(model) => complete_openai(
                 "https://api.openai.com/v1",
                 model,
-                &required_env("OPENAI_API_KEY")?,
+                &required_env("ATOM_OPENAI_API_KEY")?,
                 &request.input,
                 &request.images,
                 "openai",
             ),
             LlmBackend::Anthropic(model) => complete_anthropic(
                 model,
-                &required_env("ANTHROPIC_API_KEY")?,
+                &required_env("ATOM_ANTHROPIC_API_KEY")?,
+                &request.input,
+                &request.images,
+            ),
+            LlmBackend::Gemini(model) => complete_gemini(
+                model,
+                &required_env("ATOM_GEMINI_API_KEY")?,
                 &request.input,
                 &request.images,
             ),
@@ -65,14 +71,7 @@ impl LlmProvider for DefaultLlmProvider {
                 } else {
                     endpoint.clone()
                 };
-                let api_key = std::env::var("ATOM_OPENAI_COMPATIBLE_API_KEY")
-                    .or_else(|_| std::env::var("OPENAI_API_KEY"))
-                    .map_err(|_| {
-                        io::Error::new(
-                            io::ErrorKind::NotFound,
-                            "ATOM_OPENAI_COMPATIBLE_API_KEY or OPENAI_API_KEY must be set",
-                        )
-                    })?;
+                let api_key = required_env("ATOM_OPENAI_COMPATIBLE_API_KEY")?;
                 complete_openai(
                     &endpoint,
                     name,
@@ -98,6 +97,7 @@ pub fn backend_name(backend: &LlmBackend) -> &'static str {
     match backend {
         LlmBackend::None => "none",
         LlmBackend::Anthropic(_) => "anthropic",
+        LlmBackend::Gemini(_) => "gemini",
         LlmBackend::OpenAi(_) => "openai",
         LlmBackend::Ollama(_) => "ollama",
         LlmBackend::OpenAiCompatible { .. } => "openai-compatible",
@@ -114,6 +114,7 @@ pub fn build_send_confirmation(
     }
     let destination = match backend {
         LlmBackend::Anthropic(_) => "Anthropic".to_string(),
+        LlmBackend::Gemini(_) => "Gemini".to_string(),
         LlmBackend::OpenAi(_) => "OpenAI".to_string(),
         LlmBackend::OpenAiCompatible { endpoint, name } if !endpoint.is_empty() => {
             endpoint.clone().to_string()
@@ -837,6 +838,25 @@ fn complete_anthropic(
     })
 }
 
+fn complete_gemini(
+    model: &str,
+    api_key: &str,
+    prompt: &str,
+    images: &[LlmImage],
+) -> io::Result<LlmResponse> {
+    let body = gemini_interactions_body(model, prompt, images).to_string();
+    let response = post_json(
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+        &[("x-goog-api-key", api_key.to_string())],
+        &body,
+        Duration::from_secs(120),
+    )?;
+    Ok(LlmResponse {
+        text: extract_gemini_text(&response)?,
+        backend: "gemini".to_string(),
+    })
+}
+
 fn post_json(
     url: &str,
     headers: &[(&str, String)],
@@ -905,6 +925,27 @@ fn anthropic_messages_body(model: &str, prompt: &str, images: &[LlmImage]) -> se
     })
 }
 
+fn gemini_interactions_body(model: &str, prompt: &str, images: &[LlmImage]) -> serde_json::Value {
+    if images.is_empty() {
+        return json!({
+            "model": model,
+            "input": prompt,
+        });
+    }
+    let mut input = vec![json!({"type": "text", "text": prompt})];
+    input.extend(images.iter().map(|image| {
+        json!({
+            "type": "image",
+            "data": image.data_base64,
+            "mime_type": image.mime_type,
+        })
+    }));
+    json!({
+        "model": model,
+        "input": input,
+    })
+}
+
 fn extract_openai_text(response: &str) -> io::Result<String> {
     let value: serde_json::Value = serde_json::from_str(response).map_err(io::Error::other)?;
     let content = &value["choices"][0]["message"]["content"];
@@ -924,6 +965,43 @@ fn extract_openai_text(response: &str) -> io::Result<String> {
     Err(io::Error::other(
         "OpenAI response did not contain message content",
     ))
+}
+
+fn extract_gemini_text(response: &str) -> io::Result<String> {
+    let value: serde_json::Value = serde_json::from_str(response).map_err(io::Error::other)?;
+    for key in ["output_text", "text"] {
+        if let Some(text) = value.get(key).and_then(|value| value.as_str()) {
+            return Ok(text.to_string());
+        }
+    }
+    let mut text = Vec::new();
+    collect_text_values(&value, &mut text);
+    if text.is_empty() {
+        Err(io::Error::other(
+            "Gemini response did not contain text content",
+        ))
+    } else {
+        Ok(text.join("\n"))
+    }
+}
+
+fn collect_text_values<'a>(value: &'a serde_json::Value, output: &mut Vec<&'a str>) {
+    match value {
+        serde_json::Value::Object(object) => {
+            if let Some(text) = object.get("text").and_then(|value| value.as_str()) {
+                output.push(text);
+            }
+            for value in object.values() {
+                collect_text_values(value, output);
+            }
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                collect_text_values(value, output);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn extract_anthropic_text(response: &str) -> io::Result<String> {
@@ -1059,12 +1137,33 @@ mod tests {
     }
 
     #[test]
+    fn gemini_interactions_body_sends_text_and_inline_images() {
+        let body = gemini_interactions_body(
+            "gemini-2.5-flash",
+            "describe",
+            &[LlmImage {
+                mime_type: "image/png".to_string(),
+                data_base64: "AAE=".to_string(),
+                source: "chart.png".to_string(),
+            }],
+        );
+
+        assert_eq!(body["model"], "gemini-2.5-flash");
+        assert_eq!(body["input"][0]["type"], "text");
+        assert_eq!(body["input"][1]["type"], "image");
+        assert_eq!(body["input"][1]["mime_type"], "image/png");
+        assert_eq!(body["input"][1]["data"], "AAE=");
+    }
+
+    #[test]
     fn extracts_text_from_provider_responses() {
         let openai = r##"{"choices":[{"message":{"content":"# Title\n\nBody"}}]}"##;
         let anthropic =
             r##"{"content":[{"type":"text","text":"# Title"},{"type":"text","text":"Body"}]}"##;
+        let gemini = r##"{"output":[{"content":[{"type":"text","text":"# Title"},{"type":"text","text":"Body"}]}]}"##;
 
         assert_eq!(extract_openai_text(openai).unwrap(), "# Title\n\nBody");
         assert_eq!(extract_anthropic_text(anthropic).unwrap(), "# Title\nBody");
+        assert_eq!(extract_gemini_text(gemini).unwrap(), "# Title\nBody");
     }
 }
