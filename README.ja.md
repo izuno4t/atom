@@ -18,8 +18,8 @@ atom は、HTML、PDF、Office 文書、OpenDocument、画像、OCR が必要な
 Homebrew でインストールします。
 
 ```bash
-brew tap izuno4t/atom
-brew install atom
+brew tap izuno4t/tap
+brew install izuno4t/tap/atom
 ```
 
 Homebrew package は example config を `share/atom` に配置します。

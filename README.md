@@ -18,8 +18,8 @@ Japanese documentation is available in [README.ja.md](README.ja.md).
 Install with Homebrew:
 
 ```bash
-brew tap izuno4t/atom
-brew install atom
+brew tap izuno4t/tap
+brew install izuno4t/tap/atom
 ```
 
 The Homebrew package installs the example config under `share/atom`:

@@ -75,8 +75,36 @@ Release ZIP archives must include both the executable and
 `config.toml.example` so users can create `~/.atom/config.toml` without
 checking out the repository.
 
+The release workflow also publishes `atom-<version>-source.tar.gz` and its
+`.sha256` file. The `update-homebrew-tap` release job uses that source archive
+to update `Formula/atom.rb` in `izuno4t/homebrew-tap`, so Homebrew can build
+the package with its Rust build dependency instead of depending on a
+CPU-specific binary ZIP.
+
+Set the `HOMEBREW_TAP_GITHUB_TOKEN` repository secret before publishing a tag.
+The token must be able to push to `izuno4t/homebrew-tap`.
+
 Package managers should install the example config through the `install` target:
 
 ```bash
 make install INSTALL_DIR=/path/to/bin SHARE_DIR=/path/to/share/atom
+```
+
+## Homebrew Tap Release
+
+The Homebrew tap repository is
+`https://github.com/izuno4t/homebrew-tap`. The formula should use the source
+archive published by the atom release workflow:
+
+```text
+https://github.com/izuno4t/atom/releases/download/v0.1.0/atom-0.1.0-source.tar.gz
+```
+
+The release workflow updates `Formula/atom.rb` automatically. After the workflow
+finishes, verify the tap:
+
+```bash
+brew audit --strict --online izuno4t/tap/atom
+brew install --build-from-source izuno4t/tap/atom
+brew test izuno4t/tap/atom
 ```

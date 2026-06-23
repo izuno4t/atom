@@ -7,7 +7,21 @@ on:
       - "v*"
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - name: Install documentation tools
+        run: npm install -g markdownlint-cli2 cspell
+      - name: Verify
+        run: make verify
+
   build:
+    needs: verify
     name: build-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -21,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --locked
       - name: Package Unix
         if: runner.os != 'Windows'
         run: |
@@ -30,6 +44,12 @@ jobs:
           cp config.toml.example dist/pkg/config.toml.example
           cd dist/pkg
           zip -r ../atom-${{ runner.os }}-${{ runner.arch }}.zip atom config.toml.example
+      - name: Package source for Homebrew
+        if: runner.os == 'Linux'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          git archive --format=tar.gz --prefix="atom-${version}/" -o "dist/atom-${version}-source.tar.gz" HEAD
+          sha256sum "dist/atom-${version}-source.tar.gz" > "dist/atom-${version}-source.tar.gz.sha256"
       - name: Package Windows
         if: runner.os == 'Windows'
         run: |
@@ -41,9 +61,64 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: atom-${{ runner.os }}
-          path: dist/*.zip
+          path: dist/*
       - name: Publish release asset
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: dist/*
+
+  update-homebrew-tap:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+    steps:
+      - name: Check tap token
+        run: |
+          test -n "$HOMEBREW_TAP_GITHUB_TOKEN" || {
+            echo "HOMEBREW_TAP_GITHUB_TOKEN is required to update izuno4t/homebrew-tap" >&2
+            exit 1
+          }
+      - uses: actions/download-artifact@v4
+        with:
+          name: atom-Linux
+          path: dist
+      - name: Update tap formula
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sha256="$(cut -d ' ' -f 1 "dist/atom-${version}-source.tar.gz.sha256")"
+          git clone "https://x-access-token:${HOMEBREW_TAP_GITHUB_TOKEN}@github.com/izuno4t/homebrew-tap.git" tap
+          cd tap
+          cat > Formula/atom.rb <<EOF
+          # typed: false
+          # frozen_string_literal: true
+
+          class Atom < Formula
+            desc "Anything to Markdown"
+            homepage "https://github.com/izuno4t/atom"
+            url "https://github.com/izuno4t/atom/releases/download/v${version}/atom-${version}-source.tar.gz"
+            sha256 "${sha256}"
+            license "MIT"
+            version "${version}"
+
+            depends_on "rust" => :build
+
+            def install
+              system "cargo", "install", "--locked", "--path", ".", "--bin", "atom", "--root", prefix
+              pkgshare.install "config.toml.example"
+            end
+
+            test do
+              assert_match "atom ${version}", shell_output("#{bin}/atom --version")
+              assert_path_exists pkgshare/"config.toml.example"
+            end
+          end
+          EOF
+          ruby -c Formula/atom.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/atom.rb
+          git commit -m "Update atom to ${version}" || exit 0
+          git push origin main
