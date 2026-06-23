@@ -7,7 +7,7 @@ fn release_workflow_builds_cross_platform_artifacts() {
 
     for required in [
         "ubuntu-latest",
-        "macos-26-arm64",
+        "macos-26",
         "windows-latest",
         "permissions:",
         "contents: write",
