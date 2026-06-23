@@ -34,7 +34,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-26-arm64
           - windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -62,16 +62,19 @@ jobs:
           copy target\release\atom.exe dist\pkg\atom.exe
           copy config.toml.example dist\pkg\config.toml.example
           Compress-Archive -Path dist\pkg\* -DestinationPath dist\atom-Windows-${{ runner.arch }}.zip
-      - name: Upload artifact
-        uses: actions/upload-artifact@v5
-        with:
-          name: atom-${{ runner.os }}
-          path: dist/*
+      - name: List packages
+        shell: bash
+        run: find dist -maxdepth 2 -type f -print
       - name: Publish release asset
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3
-        with:
-          files: dist/*
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          files=(dist/*.zip dist/*.tar.gz dist/*.sha256)
+          test "${#files[@]}" -gt 0
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
 
   update-homebrew-tap:
     needs: build
@@ -86,13 +89,13 @@ jobs:
             echo "HOMEBREW_TAP_GITHUB_TOKEN is required to update izuno4t/homebrew-tap" >&2
             exit 1
           }
-      - uses: actions/download-artifact@v5
-        with:
-          name: atom-Linux
-          path: dist
+      - uses: actions/checkout@v5
       - name: Update tap formula
         run: |
           version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="atom-${version}/" -o "dist/atom-${version}-source.tar.gz" HEAD
+          sha256sum "dist/atom-${version}-source.tar.gz" > "dist/atom-${version}-source.tar.gz.sha256"
           sha256="$(cut -d ' ' -f 1 "dist/atom-${version}-source.tar.gz.sha256")"
           git clone "https://x-access-token:${HOMEBREW_TAP_GITHUB_TOKEN}@github.com/izuno4t/homebrew-tap.git" tap
           cd tap

@@ -7,7 +7,7 @@ fn release_workflow_builds_cross_platform_artifacts() {
 
     for required in [
         "ubuntu-latest",
-        "macos-latest",
+        "macos-26-arm64",
         "windows-latest",
         "permissions:",
         "contents: write",
@@ -18,16 +18,48 @@ fn release_workflow_builds_cross_platform_artifacts() {
         "atom-${version}-source.tar.gz.sha256",
         "update-homebrew-tap",
         "HOMEBREW_TAP_GITHUB_TOKEN",
-        "actions/download-artifact",
+        "gh release upload",
+        "List packages",
         "Formula/atom.rb",
         "Compress-Archive",
         "zip -r",
-        "actions/upload-artifact",
-        "softprops/action-gh-release",
     ] {
         assert!(
             workflow.contains(required),
             "release workflow must contain {required}"
+        );
+    }
+
+    for forbidden in [
+        "actions/upload-artifact",
+        "actions/download-artifact",
+        "softprops/action-gh-release",
+        "macos-latest",
+        "@v4",
+        "@v2",
+    ] {
+        assert!(
+            !workflow.contains(forbidden),
+            "release workflow must not contain {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn ci_workflow_uses_current_node_actions() {
+    let workflow = fs::read_to_string(".github/workflows/ci.yml").expect("CI workflow must exist");
+
+    for required in ["actions/checkout@v5", "actions/setup-node@v5"] {
+        assert!(
+            workflow.contains(required),
+            "CI workflow must contain {required}"
+        );
+    }
+
+    for forbidden in ["@v4", "@v2"] {
+        assert!(
+            !workflow.contains(forbidden),
+            "CI workflow must not contain {forbidden}"
         );
     }
 }
