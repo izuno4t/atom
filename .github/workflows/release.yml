@@ -76,12 +76,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     env:
-      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+      TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN || secrets.TAP_GITHUB_TOKEN }}
     steps:
       - name: Check tap token
         run: |
-          test -n "$HOMEBREW_TAP_GITHUB_TOKEN" || {
-            echo "HOMEBREW_TAP_GITHUB_TOKEN is required to update izuno4t/homebrew-tap" >&2
+          test -n "$TAP_GITHUB_TOKEN" || {
+            echo "HOMEBREW_TAP_GITHUB_TOKEN or TAP_GITHUB_TOKEN is required to update izuno4t/homebrew-tap" >&2
             exit 1
           }
       - uses: actions/checkout@v5
@@ -92,7 +92,7 @@ jobs:
           git archive --format=tar.gz --prefix="atom-${version}/" -o "dist/atom-${version}-source.tar.gz" HEAD
           sha256sum "dist/atom-${version}-source.tar.gz" > "dist/atom-${version}-source.tar.gz.sha256"
           sha256="$(cut -d ' ' -f 1 "dist/atom-${version}-source.tar.gz.sha256")"
-          git clone "https://x-access-token:${HOMEBREW_TAP_GITHUB_TOKEN}@github.com/izuno4t/homebrew-tap.git" tap
+          git clone "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/izuno4t/homebrew-tap.git" tap
           cd tap
           cat > Formula/atom.rb <<EOF
           # typed: false

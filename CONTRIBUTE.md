@@ -81,8 +81,9 @@ to update `Formula/atom.rb` in `izuno4t/homebrew-tap`, so Homebrew can build
 the package with its Rust build dependency instead of depending on a
 CPU-specific binary ZIP.
 
-Set the `HOMEBREW_TAP_GITHUB_TOKEN` repository secret before publishing a tag.
-The token must be able to push to `izuno4t/homebrew-tap`.
+Set either the `HOMEBREW_TAP_GITHUB_TOKEN` or `TAP_GITHUB_TOKEN` repository
+secret before publishing a tag. The token must be able to push to
+`izuno4t/homebrew-tap`.
 
 Package managers should install the example config through the `install` target:
 
