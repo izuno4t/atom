@@ -35,10 +35,10 @@ fn cli_prints_version_without_input() {
         .expect("atom binary should run");
 
     assert!(output.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout).trim(),
-        format!("atom {}", env!("CARGO_PKG_VERSION"))
-    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // The decorative banner must keep a plain, script-parseable "atom <version>" token.
+    assert!(stdout.contains(&format!("atom {}", env!("CARGO_PKG_VERSION"))));
+    assert!(stdout.contains("Anything to Markdown"));
     assert!(output.stderr.is_empty());
 }
 

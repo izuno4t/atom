@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 
 use anything_to_markdown::{
@@ -159,5 +159,28 @@ Options:
 }
 
 fn print_version() {
-    println!("atom {}", env!("CARGO_PKG_VERSION"));
+    let version = env!("CARGO_PKG_VERSION");
+    let arch = std::env::consts::ARCH;
+    let os = std::env::consts::OS;
+
+    // Respect NO_COLOR (https://no-color.org) and only colorize an interactive stdout.
+    let color = env::var_os("NO_COLOR").is_none() && io::stdout().is_terminal();
+    let (cyan, dim, bold, reset) = if color {
+        ("\x1b[36m", "\x1b[90m", "\x1b[1m", "\x1b[0m")
+    } else {
+        ("", "", "", "")
+    };
+
+    let logo = r"    _  _____ ___  __  __
+   / \|_   _/ _ \|  \/  |
+  / _ \ | || | | | |\/| |
+ / ___ \| || |_| | |  | |
+/_/   \_\_| \___/|_|  |_|";
+
+    println!("{cyan}{bold}{logo}{reset}");
+    println!();
+    println!("  {dim}Anything to Markdown — turn documents into clean, structured Markdown.{reset}");
+    // Keep the plain "atom <version>" token intact so scripts can still parse it.
+    println!("  {bold}atom{reset} {cyan}{version}{reset}  {dim}({arch}-{os}){reset}");
+    println!("  {dim}Run 'atom --help' to see all options.{reset}");
 }
