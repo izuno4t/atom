@@ -14,8 +14,18 @@ fn release_workflow_builds_cross_platform_artifacts() {
         "make verify",
         "cargo build --release --locked",
         "config.toml.example",
-        "atom-${version}-source.tar.gz",
-        "atom-${version}-source.tar.gz.sha256",
+        // Binary tarballs named by rust target triple (no per-OS zip).
+        "rustc -vV",
+        "atom-${version}-${target}",
+        ".tar.gz.sha256",
+        "atom-${version}-aarch64-apple-darwin.tar.gz",
+        "atom-${version}-x86_64-unknown-linux-gnu.tar.gz",
+        // Homebrew formula installs the prebuilt binary (no source build).
+        "bin.install \"atom\"",
+        "on_macos do",
+        "on_linux do",
+        "on_intel do",
+        "odie \"atom is not available for Intel macOS\"",
         "update-homebrew-tap",
         "HOMEBREW_TAP_GITHUB_TOKEN",
         "TAP_GITHUB_TOKEN",
@@ -26,8 +36,6 @@ fn release_workflow_builds_cross_platform_artifacts() {
         "gh release upload",
         "List packages",
         "Formula/atom.rb",
-        "Compress-Archive",
-        "zip -r",
     ] {
         assert!(
             workflow.contains(required),
@@ -45,6 +53,11 @@ fn release_workflow_builds_cross_platform_artifacts() {
         "- main",
         "@v4",
         "@v2",
+        // Distribution is tarball-only and binary-based.
+        "atom-${version}-source.tar.gz",
+        "Compress-Archive",
+        "zip -r",
+        "depends_on",
     ] {
         assert!(
             !workflow.contains(forbidden),
