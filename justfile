@@ -19,3 +19,6 @@ compare-baseline:
     cargo test --workspace
 
 ci: test eval bench compare-baseline
+
+bump VERSION:
+    ./scripts/bump-version.sh {{VERSION}}
