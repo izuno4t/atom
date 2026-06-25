@@ -1,29 +1,29 @@
-# atom 開発ハーネス
+# atom Development Harness
 
-## このリポジトリは何か
+## What this repository is
 
-Anything to Markdown。ドキュメントを人間が読める構造化 Markdown に
-変換する Rust 製 CLI / API。
-要件は `docs/requirements.md`、実行計画は `docs/tasks.md` を参照する。
+atom (Anything to Markdown) is a Rust CLI / API that converts documents
+into readable, structured Markdown.
 
-## 改善ループの回し方
+For anything documented under `docs/`, read the source of truth rather
+than duplicating it here:
 
-1. `just test` でテストを確認する。
-2. `just eval` で変換レポート JSON を確認する。
-3. 失敗 fixture または warning の原因を、入力パーサ、AST、Writer、評価関数に切り分ける。
-4. 最小修正を入れる。
-5. `just ci` で回帰がないことを確認する。
+- Requirements: `docs/requirements.md`
+- Implementation plan: `docs/implementation-plan.md`
+- Tasks, per-format scope, and current status: `docs/tasks.md`
 
-## やってはいけないこと
+## Improvement loop
 
-- `tests/fixtures/**/*.expected.md` を根拠なく書き換えない。
-- 評価関数のしきい値を下げて失敗を隠さない。
-- 外部 LLM 送信をデフォルトで有効化しない。
-- 機密文書を fixture に追加しない。
+1. Run `just test` to check the tests.
+2. Run `just eval` to inspect the conversion report JSON.
+3. Triage a failing fixture or warning into one of: input parser, AST,
+   writer, or evaluation function.
+4. Apply the smallest fix.
+5. Run `just ci` to confirm there is no regression.
 
-## 現在の実装境界
+## Do not
 
-- DOCX は `unzip` で `word/document.xml` を読む最小実装。
-- PDF はヒューリスティックなテキスト抽出のみ。
-- PPTX / XLSX は入口と warning を実装済みで、構造変換は今後拡張する。
-- OCR / LLM は境界を実装済みで、外部呼び出しは明示設定時のみ扱う。
+- Do not rewrite `tests/fixtures/**/*.expected.md` without justification.
+- Do not lower evaluation-function thresholds to hide failures.
+- Do not enable external LLM sending by default.
+- Do not add confidential documents to fixtures.

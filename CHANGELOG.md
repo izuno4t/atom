@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.1
+
+### New Features
+
+- Show a decorative banner, a one-line description, and the build target in
+  `atom --version`, while keeping a plain, script-parseable `atom <version>`
+  token. Color is applied only to an interactive terminal and honors
+  `NO_COLOR`.
+
+### Documentation
+
+- Rewrite the project `CLAUDE.md` in English and point it at the `docs/`
+  sources of truth instead of duplicating per-format status.
+
 ## v1.0.0
 
 ### New Features
