@@ -179,7 +179,9 @@ fn print_version() {
 
     println!("{cyan}{bold}{logo}{reset}");
     println!();
-    println!("  {dim}Anything to Markdown — turn documents into clean, structured Markdown.{reset}");
+    println!(
+        "  {dim}Anything to Markdown — turn documents into clean, structured Markdown.{reset}"
+    );
     // Keep the plain "atom <version>" token intact so scripts can still parse it.
     println!("  {bold}atom{reset} {cyan}{version}{reset}  {dim}({arch}-{os}){reset}");
     println!("  {dim}Run 'atom --help' to see all options.{reset}");
