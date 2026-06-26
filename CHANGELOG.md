@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.1.0
+
+### New Features
+
+- Add OCR engine support that can be enabled with `--ocr on` (or `ocr = on` in
+  config). When enabled without an explicit engine, the in-process `ocr-rs`
+  engine is used; its models are downloaded on first use and cached under
+  `~/.atom/models/ocr-rs`. OCR remains disabled by default.
+- Add `paddleocr-v6` as a selectable subprocess OCR engine.
+- Read proxy and custom CA settings from environment variables for all outbound
+  HTTP, covering both model downloads and the LLM API. Proxies use the standard
+  `*_PROXY` and `NO_PROXY` variables; a custom CA bundle is read from
+  `ATOM_CA_BUNDLE`, `SSL_CERT_FILE`, or `CURL_CA_BUNDLE`.
+
+### Bug Fixes
+
+- Suppress the native MNN device banner that the `ocr-rs` engine printed to
+  standard output so it no longer leaks into Markdown output.
+
+### Documentation
+
+- Add `docs/ocr.md` describing OCR behavior, engine selection, model download
+  and caching, and proxy / custom-CA configuration.
+
 ## v1.0.1
 
 ### New Features
