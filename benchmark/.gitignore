@@ -1,7 +1,12 @@
 /outputs/
 /reports/
 /.venv/
+/.venv-ocr/
 /.uv-cache/
 /benchmark.config.toml
 __pycache__/
 */__pycache__/
+
+# OCR エンジン評価の重量生成物（モデルと出力。フィクスチャは小さいので追跡する）
+/ocr-eval/models/
+/ocr-eval/out/

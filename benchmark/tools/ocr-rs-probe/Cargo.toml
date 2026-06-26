@@ -1,0 +1,14 @@
+[package]
+name = "ocr-rs-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# atom workspace に取り込まれないよう独立クレートにする (既存 *-probe と同じ規約)
+[workspace]
+
+# atom 本体と同じ ocr-rs / image の組み合わせで、ocr-rs エンジンを raw に叩く。
+# benchmark/tools/*-probe と同じ「単機能 Rust プローブ」規約に合わせる。
+[dependencies]
+ocr-rs = "2.2.2"
+image = "0.25"

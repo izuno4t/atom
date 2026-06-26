@@ -241,13 +241,6 @@ impl Converter {
             }
         };
 
-        if self.options.ocr != OcrEngine::None {
-            warnings.push(format!(
-                "OCR engine selected: {}",
-                ocr_name(&self.options.ocr)
-            ));
-        }
-
         if self.options.restructure || self.options.translate.is_some() {
             llm::apply_llm_filters(&mut ast, &self.options, &mut warnings)?;
         }

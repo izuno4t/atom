@@ -105,8 +105,8 @@ pub fn parse_format(value: &str) -> Option<OutputFormat> {
 
 pub fn parse_ocr(value: &str) -> OcrEngine {
     match value {
-        "none" => OcrEngine::None,
-        "auto" => OcrEngine::Auto,
+        "off" | "none" | "false" => OcrEngine::None,
+        "on" | "auto" | "true" => OcrEngine::Auto,
         "ocr-rs" => OcrEngine::OcrRs,
         "ndlocr-lite" => OcrEngine::NdlOcrLite,
         "ndl-koten" => OcrEngine::NdlKoten,

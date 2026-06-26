@@ -863,10 +863,8 @@ fn post_json(
     body: &str,
     timeout: Duration,
 ) -> io::Result<String> {
-    let config = ureq::Agent::config_builder()
-        .timeout_global(Some(timeout))
-        .build();
-    let agent = config.new_agent();
+    // プロキシ・独自CA を環境変数から読む共有 HTTP ヘルパー経由で Agent を作る。
+    let agent = super::http::agent(Some(timeout));
     let mut request = agent
         .post(url)
         .header("Content-Type", "application/json")

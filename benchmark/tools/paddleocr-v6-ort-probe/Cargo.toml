@@ -1,0 +1,16 @@
+[package]
+name = "paddleocr-v6-ort-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# atom workspace に取り込まれないよう独立クレートにする (既存 *-probe と同じ規約)
+[workspace]
+
+# PP-OCRv6 を Rust から in-process で動かす検証用プローブ。
+# まず rec.onnx + CTC を ort で動かし、Python 版と一致するか確かめる。
+# ort 2.x はプレリリース(rc)のため、明示的に rc バージョンを指定する必要がある。
+[dependencies]
+ort = "2.0.0-rc.10"
+ndarray = "0.17"
+image = "0.25"

@@ -3,7 +3,9 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use super::http;
 
 pub trait OcrBackend {
     fn recognize(&self, input: &Path) -> io::Result<String>;
@@ -13,14 +15,23 @@ pub fn recognize_with(backend: &dyn OcrBackend, input: &Path) -> io::Result<Stri
     backend.recognize(input)
 }
 
+// ocr-rs(PP-OCRv5 mobile, MNN) の既定モデルの取得元。未設定のまま OCR を有効に
+// できるよう、モデルが無ければ初回にここからダウンロードしてキャッシュする。
+// 出典: zibo-chen/rust-paddle-ocr (Apache-2.0)。
+const MODEL_BASE_URL: &str =
+    "https://raw.githubusercontent.com/zibo-chen/rust-paddle-ocr/main/models";
+const DET_FILE: &str = "PP-OCRv5_mobile_det_fp16.mnn";
+const REC_FILE: &str = "PP-OCRv5_mobile_rec_fp16.mnn";
+const CHARSET_FILE: &str = "ppocr_keys_v5.txt";
+
 pub struct SubprocessOcrBackend {
     pub engine: OcrEngine,
 }
 
 pub struct OcrRsBackend {
-    pub det_model_path: PathBuf,
-    pub rec_model_path: PathBuf,
-    pub charset_path: PathBuf,
+    det_model_path: PathBuf,
+    rec_model_path: PathBuf,
+    charset_path: PathBuf,
 }
 
 impl OcrBackend for SubprocessOcrBackend {
@@ -49,19 +60,84 @@ impl OcrBackend for OcrRsBackend {
 }
 
 impl OcrRsBackend {
-    pub fn from_env() -> io::Result<Self> {
+    /// 環境変数 `ATOM_OCR_RS_*` でモデルパスが与えられていればそれを使う。
+    /// いずれも未設定なら、キャッシュ済みモデルを使う(無ければ初回ダウンロード)。
+    /// 一部だけ設定した場合は不整合を避けるため3点すべてを必須にする。
+    pub fn from_env_or_download() -> io::Result<Self> {
+        let env_keys = [
+            "ATOM_OCR_RS_DET_MODEL",
+            "ATOM_OCR_RS_REC_MODEL",
+            "ATOM_OCR_RS_CHARSET",
+        ];
+        if env_keys.iter().any(|key| std::env::var_os(key).is_some()) {
+            return Ok(Self {
+                det_model_path: required_env_path(env_keys[0])?,
+                rec_model_path: required_env_path(env_keys[1])?,
+                charset_path: required_env_path(env_keys[2])?,
+            });
+        }
+
+        let dir = models_cache_dir()?;
+        std::fs::create_dir_all(&dir)?;
         Ok(Self {
-            det_model_path: required_env_path("ATOM_OCR_RS_DET_MODEL")?,
-            rec_model_path: required_env_path("ATOM_OCR_RS_REC_MODEL")?,
-            charset_path: required_env_path("ATOM_OCR_RS_CHARSET")?,
+            det_model_path: ensure_cached_model(&dir, DET_FILE)?,
+            rec_model_path: ensure_cached_model(&dir, REC_FILE)?,
+            charset_path: ensure_cached_model(&dir, CHARSET_FILE)?,
         })
     }
+}
+
+/// ocr-rs モデルのキャッシュ先 (`$ATOM_HOME/models/ocr-rs` または
+/// `$HOME/.atom/models/ocr-rs`)。
+fn models_cache_dir() -> io::Result<PathBuf> {
+    let home = std::env::var_os("ATOM_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".atom")));
+    home.map(|home| home.join("models").join("ocr-rs"))
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "cannot determine ATOM_HOME or HOME for the model cache",
+            )
+        })
+}
+
+/// キャッシュに無ければダウンロードし、モデルファイルのパスを返す。
+fn ensure_cached_model(dir: &Path, file: &str) -> io::Result<PathBuf> {
+    let dest = dir.join(file);
+    if dest.exists() && std::fs::metadata(&dest)?.len() > 0 {
+        return Ok(dest);
+    }
+    download_to(&format!("{MODEL_BASE_URL}/{file}"), &dest)?;
+    Ok(dest)
+}
+
+/// URL から取得して dest へ原子的に書き込む。プロキシ・独自CAは
+/// [`super::http`] 経由で環境変数から読まれる。
+fn download_to(url: &str, dest: &Path) -> io::Result<()> {
+    let agent = http::agent(Some(Duration::from_secs(300)));
+    let mut response = agent
+        .get(url)
+        .call()
+        .map_err(|error| io::Error::other(format!("failed to download {url}: {error}")))?;
+    let bytes = response
+        .body_mut()
+        .with_config()
+        .limit(64 * 1024 * 1024)
+        .read_to_vec()
+        .map_err(|error| io::Error::other(format!("failed to read {url}: {error}")))?;
+    let tmp = dest.with_extension("download");
+    std::fs::write(&tmp, &bytes)?;
+    std::fs::rename(&tmp, dest)?;
+    Ok(())
 }
 
 pub fn backend_for_engine(engine: &OcrEngine) -> io::Result<Option<Box<dyn OcrBackend>>> {
     match engine {
         OcrEngine::None => Ok(None),
-        OcrEngine::Auto | OcrEngine::OcrRs => Ok(Some(Box::new(OcrRsBackend::from_env()?))),
+        OcrEngine::Auto | OcrEngine::OcrRs => {
+            Ok(Some(Box::new(OcrRsBackend::from_env_or_download()?)))
+        }
         _ => Ok(Some(Box::new(SubprocessOcrBackend {
             engine: engine.clone(),
         }))),

@@ -29,19 +29,10 @@ fn ndlocr_lite_subprocess_command_is_exposed() {
 }
 
 #[test]
-fn ocr_rs_backend_requires_model_environment() {
-    if std::env::var_os("ATOM_OCR_RS_DET_MODEL").is_some()
-        && std::env::var_os("ATOM_OCR_RS_REC_MODEL").is_some()
-        && std::env::var_os("ATOM_OCR_RS_CHARSET").is_some()
-    {
-        return;
-    }
-
-    let backend = match ocr::backend_for_engine(&OcrEngine::OcrRs) {
-        Ok(_) => panic!("ocr-rs backend should require model environment"),
-        Err(error) => error,
-    };
-
-    assert!(backend.to_string().contains("ATOM_OCR_RS_DET_MODEL"));
+fn ocr_rs_engine_is_in_process_without_subprocess_command() {
+    // ocr-rs(Auto も同様)は in-process エンジンで、外部コマンドを持たない。
+    // モデルは未設定なら初回ダウンロードでキャッシュするため、ここでは通信を
+    // 伴う backend 構築は呼ばず、コマンドが無いことだけを確認する。
     assert!(ocr::command_for_engine(&OcrEngine::OcrRs).is_none());
+    assert!(ocr::command_for_engine(&OcrEngine::Auto).is_none());
 }
