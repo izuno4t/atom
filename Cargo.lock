@@ -183,6 +183,7 @@ dependencies = [
  "hayro",
  "hayro-cmap",
  "image",
+ "libc",
  "lopdf",
  "md-5 0.10.6",
  "ocr-rs",

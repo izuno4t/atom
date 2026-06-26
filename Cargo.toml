@@ -27,6 +27,9 @@ flate2 = "1"
 hayro = "0.7.0"
 hayro-cmap = { version = "0.1.0", features = ["embed-cmaps"] }
 image = "0.25"
+# OCR(ocr-rs/MNN)が初期化時に stdout へ出すバナーを抑止するため、Unix で fd を
+# 一時退避する用途に使う。
+libc = "0.2"
 lopdf = { version = "0.38.0", default-features = false }
 md-5 = "0.10"
 ocr-rs = "2.2.2"

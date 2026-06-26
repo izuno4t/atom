@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# atom の subprocess OCR 規約用ラッパー。
+# 画像パスを第1引数で受け取り、PP-OCRv6(onnxruntime) の認識テキストを stdout へ出す。
+#
+# atom からの使い方:
+#   atom <input.pdf> --ocr /絶対パス/paddleocr-v6
+# もしくは本ファイルを PATH の通った場所へ置けば:
+#   atom <input.pdf> --ocr paddleocr-v6
+set -euo pipefail
+
+dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo="$(cd "$dir/../../.." && pwd)"
+venv_python="$repo/benchmark/.venv-ocr/bin/python"
+
+if [[ ! -x "$venv_python" ]]; then
+  echo "paddleocr-v6 wrapper: venv not found at $venv_python" >&2
+  echo "see benchmark/tools/paddleocr-v6/README.md for setup" >&2
+  exit 1
+fi
+
+exec "$venv_python" "$dir/run.py" --image "$1"

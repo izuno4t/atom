@@ -43,19 +43,81 @@ impl OcrBackend for SubprocessOcrBackend {
 impl OcrBackend for OcrRsBackend {
     fn recognize(&self, input: &Path) -> io::Result<String> {
         let image = image::open(input).map_err(io::Error::other)?;
-        let engine = ocr_rs::OcrEngine::new(
-            &self.det_model_path,
-            &self.rec_model_path,
-            &self.charset_path,
-            None,
-        )
-        .map_err(io::Error::other)?;
-        let results = engine.recognize(&image).map_err(io::Error::other)?;
+        // ocr-rs が内部で使う MNN は初期化時にネイティブ側から stdout へ能力バナーを
+        // 出す。atom の Markdown 出力(stdout)に混ざらないよう、OCR 実行中だけ stdout を
+        // 退避する。失敗(エラー return)時も RAII で確実に元へ戻す。
+        let results = {
+            let _silencer = StdoutSilencer::new();
+            let engine = ocr_rs::OcrEngine::new(
+                &self.det_model_path,
+                &self.rec_model_path,
+                &self.charset_path,
+                None,
+            )
+            .map_err(io::Error::other)?;
+            engine.recognize(&image).map_err(io::Error::other)?
+        };
         Ok(results
             .into_iter()
             .map(|result| result.text)
             .collect::<Vec<_>>()
             .join("\n"))
+    }
+}
+
+/// OCR 実行中だけ stdout(fd 1)を `/dev/null` へ退避する RAII ガード。MNN が
+/// ネイティブ側から stdout へ出すバナーが atom の出力に混ざるのを防ぐ。
+/// Unix 以外では何もしない。
+#[cfg(unix)]
+struct StdoutSilencer {
+    saved_fd: Option<i32>,
+}
+
+#[cfg(unix)]
+impl StdoutSilencer {
+    fn new() -> Self {
+        // SAFETY: 標準的な dup/dup2 による fd 退避。途中で失敗したら退避せず素通しする。
+        unsafe {
+            let saved = libc::dup(libc::STDOUT_FILENO);
+            if saved < 0 {
+                return Self { saved_fd: None };
+            }
+            let devnull = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
+            if devnull < 0 {
+                libc::close(saved);
+                return Self { saved_fd: None };
+            }
+            libc::dup2(devnull, libc::STDOUT_FILENO);
+            libc::close(devnull);
+            Self {
+                saved_fd: Some(saved),
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for StdoutSilencer {
+    fn drop(&mut self) {
+        if let Some(saved) = self.saved_fd {
+            // SAFETY: new() で確保した退避 fd を stdout へ戻し、後始末する。
+            // ネイティブ stdio のバッファを先に流してから差し替える。
+            unsafe {
+                libc::fflush(std::ptr::null_mut());
+                libc::dup2(saved, libc::STDOUT_FILENO);
+                libc::close(saved);
+            }
+        }
+    }
+}
+
+#[cfg(not(unix))]
+struct StdoutSilencer;
+
+#[cfg(not(unix))]
+impl StdoutSilencer {
+    fn new() -> Self {
+        Self
     }
 }
 

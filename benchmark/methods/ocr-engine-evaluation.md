@@ -148,6 +148,17 @@ PaddleOCR の onnxruntime を外部プロセスで呼ぶ subprocess の両方が
   有無をまず確かめるだけなら、完成済みパイプラインを即使える subprocess が最短。
   つまり「subprocess で優位性を検証 → 本採用は in-process で実装」の二段が合理的。
 
+## 実装状況（この評価を受けた結論）
+
+- `ocr-rs` を atom の既定の in-process エンジンとして整備した。OCR は既定で無効で、
+  `--ocr on` 等で有効化するとエンジン未指定でも `ocr-rs` を使い、モデル未設定なら
+  初回に自動ダウンロードする。
+- PP-OCRv6 は「選択肢」として subprocess（`paddleocr-v6` ラッパー）で追加し、
+  `atom <pdf> --ocr paddleocr-v6` の動作を検証した。in-process(`ort`)化は技術検証
+  まで（[tools/paddleocr-v6-ort-probe](../tools/paddleocr-v6-ort-probe/README.md)）。
+- 利用方法・設定・ネットワーク（プロキシ／独自CA）は [docs/ocr.md](../../docs/ocr.md)
+  にまとめた。
+
 ## 残課題
 
 - 本評価はクリーンな合成文のみ。PP-OCRv6 の優位が出るはずの実スキャン・低解像度・

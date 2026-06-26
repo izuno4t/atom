@@ -37,6 +37,28 @@ benchmark/.venv-ocr/bin/python benchmark/tools/paddleocr-v6/run.py \
 
 認識テキストを行ごとに標準出力へ出す。
 
+## atom からの利用（subprocess エンジン）
+
+atom は `--ocr <名前>` を `名前 <画像>` として実行し、標準出力を認識テキストとして
+読む。本ディレクトリの `paddleocr-v6` ラッパーがこの規約に合わせて、PP-OCRv6 を
+ONNX Runtime で実行し認識テキストだけを標準出力へ出す（モデル生成ログ等は標準
+エラーへ逃がす）。
+
+```bash
+atom <input.pdf> --ocr "$(pwd)/benchmark/tools/paddleocr-v6/paddleocr-v6"
+```
+
+ラッパーを PATH の通った場所へ置けば `--ocr paddleocr-v6` で呼べる。OCR は PDF の
+無テキストページに対してのみ走るため、画像は1ページ PDF に包んで渡す。
+
+動作確認例（画像のみ PDF）。
+
+```bash
+atom benchmark/ocr-eval/fixtures/number-gothic-h.pdf \
+  --ocr "$(pwd)/benchmark/tools/paddleocr-v6/paddleocr-v6"
+# => 売上は前年比123.4％増となった。 / 対象は2026年6月26日時点の集計です。
+```
+
 ## ONNX Runtime バックエンドの要点
 
 - PaddleOCR の共通引数 `engine="onnxruntime"` で ONNX を選ぶ。

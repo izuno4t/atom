@@ -58,8 +58,15 @@ def main() -> None:
     ap.add_argument("--models-dir", default=str(DEFAULT_MODELS))
     args = ap.parse_args()
 
-    ocr = build(Path(args.models_dir), args.tier)
-    res = ocr.predict(args.image)
+    # PaddleOCR/paddlex はモデル生成ログ等を stdout に出す。atom は subprocess の
+    # stdout を認識テキストとして読むため、雑音を stderr へ逃がし、認識結果だけを
+    # stdout に出す。
+    import contextlib
+    import sys
+
+    with contextlib.redirect_stdout(sys.stderr):
+        ocr = build(Path(args.models_dir), args.tier)
+        res = ocr.predict(args.image)
     for line in res[0].get("rec_texts", []):
         print(line)
 

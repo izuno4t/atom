@@ -61,9 +61,9 @@ impl Default for ConversionOptions {
             format: OutputFormat::Markdown,
             extract_media: None,
             inline_base64_media: false,
-            // 既定で OCR 有効。エンジン未指定(Auto)はスキャンPDF検出時に ocr-rs を
-            // 用いる。明示的に無効化するには `ocr = off`(None) を指定する。
-            ocr: OcrEngine::Auto,
+            // 既定では OCR 無効。`ocr = on`(Auto) で有効化するとエンジン未指定でも
+            // ocr-rs を使い、モデル未設定なら初回に自動ダウンロードする。
+            ocr: OcrEngine::None,
             llm: LlmBackend::None,
             restructure: false,
             translate: None,
