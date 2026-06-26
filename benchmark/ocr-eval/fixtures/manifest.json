@@ -1,0 +1,122 @@
+[
+  {
+    "id": "novel-gothic-h",
+    "sample": "novel",
+    "font": "gothic",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "novel-gothic-h.png",
+    "pdf": "novel-gothic-h.pdf",
+    "gt": "novel-gothic-h.gt.txt"
+  },
+  {
+    "id": "novel-mincho-h",
+    "sample": "novel",
+    "font": "mincho",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "novel-mincho-h.png",
+    "pdf": "novel-mincho-h.pdf",
+    "gt": "novel-mincho-h.gt.txt"
+  },
+  {
+    "id": "novel-maru-h",
+    "sample": "novel",
+    "font": "maru",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "novel-maru-h.png",
+    "pdf": "novel-maru-h.pdf",
+    "gt": "novel-maru-h.gt.txt"
+  },
+  {
+    "id": "tech-gothic-h",
+    "sample": "tech",
+    "font": "gothic",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "tech-gothic-h.png",
+    "pdf": "tech-gothic-h.pdf",
+    "gt": "tech-gothic-h.gt.txt"
+  },
+  {
+    "id": "tech-mincho-h",
+    "sample": "tech",
+    "font": "mincho",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "tech-mincho-h.png",
+    "pdf": "tech-mincho-h.pdf",
+    "gt": "tech-mincho-h.gt.txt"
+  },
+  {
+    "id": "tech-maru-h",
+    "sample": "tech",
+    "font": "maru",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "tech-maru-h.png",
+    "pdf": "tech-maru-h.pdf",
+    "gt": "tech-maru-h.gt.txt"
+  },
+  {
+    "id": "number-gothic-h",
+    "sample": "number",
+    "font": "gothic",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "number-gothic-h.png",
+    "pdf": "number-gothic-h.pdf",
+    "gt": "number-gothic-h.gt.txt"
+  },
+  {
+    "id": "number-mincho-h",
+    "sample": "number",
+    "font": "mincho",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "number-mincho-h.png",
+    "pdf": "number-mincho-h.pdf",
+    "gt": "number-mincho-h.gt.txt"
+  },
+  {
+    "id": "katakana-gothic-h",
+    "sample": "katakana",
+    "font": "gothic",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "katakana-gothic-h.png",
+    "pdf": "katakana-gothic-h.pdf",
+    "gt": "katakana-gothic-h.gt.txt"
+  },
+  {
+    "id": "katakana-mincho-h",
+    "sample": "katakana",
+    "font": "mincho",
+    "orientation": "horizontal",
+    "language": "ja",
+    "png": "katakana-mincho-h.png",
+    "pdf": "katakana-mincho-h.pdf",
+    "gt": "katakana-mincho-h.gt.txt"
+  },
+  {
+    "id": "vertical-gothic-v",
+    "sample": "vertical",
+    "font": "gothic",
+    "orientation": "vertical",
+    "language": "ja",
+    "png": "vertical-gothic-v.png",
+    "pdf": "vertical-gothic-v.pdf",
+    "gt": "vertical-gothic-v.gt.txt"
+  },
+  {
+    "id": "vertical-mincho-v",
+    "sample": "vertical",
+    "font": "mincho",
+    "orientation": "vertical",
+    "language": "ja",
+    "png": "vertical-mincho-v.png",
+    "pdf": "vertical-mincho-v.pdf",
+    "gt": "vertical-mincho-v.gt.txt"
+  }
+]

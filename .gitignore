@@ -33,3 +33,5 @@ tests/inputs/*
 !tests/inputs/.gitkeep
 !tests/inputs/README.md
 **/.DS_Store
+benchmark/.venv-ocr
+benchmark/ocr-eval/out

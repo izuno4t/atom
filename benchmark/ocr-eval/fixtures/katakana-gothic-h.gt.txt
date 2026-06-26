@@ -1,0 +1,2 @@
+OCRエンジンPP-OCRv6はONNX
+Runtimeで動作し、50言語に対応する。
