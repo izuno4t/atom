@@ -82,13 +82,13 @@ impl StdoutSilencer {
             if saved < 0 {
                 return Self { saved_fd: None };
             }
-            let devnull = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
-            if devnull < 0 {
+            let dev_null = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
+            if dev_null < 0 {
                 libc::close(saved);
                 return Self { saved_fd: None };
             }
-            libc::dup2(devnull, libc::STDOUT_FILENO);
-            libc::close(devnull);
+            libc::dup2(dev_null, libc::STDOUT_FILENO);
+            libc::close(dev_null);
             Self {
                 saved_fd: Some(saved),
             }
