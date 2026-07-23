@@ -8,23 +8,43 @@ struct PdfOxideWord {
 
 struct PdfOxideRow {
     words: Vec<PdfOxideWord>,
-    text: String,
-    x_groups: Vec<f32>,
+    top: f32,
     is_paragraph: bool,
-    has_partial_numbering: bool,
-    is_table_row: bool,
 }
 
-pub(super) fn extract_pdf_oxide_form_words_page(
+pub(super) fn extract_pdf_oxide_form_words_document(
+    document: &pdf_oxide::PdfDocument,
+    page_count: usize,
+) -> pdf_oxide::error::Result<String> {
+    let mut chunks = Vec::new();
+    let mut previous_schema = None;
+    for page_index in 0..page_count {
+        let words = extract_pdf_oxide_form_words_page(document, page_index)?;
+        if words.is_empty() {
+            continue;
+        }
+        let (content, schema) =
+            extract_form_content_from_pdf_oxide_words(words, previous_schema.as_ref());
+        if let Some(schema) = schema {
+            previous_schema = Some(schema);
+        }
+        if !content.trim().is_empty() {
+            chunks.push(content);
+        }
+    }
+    Ok(chunks.join("\n\n"))
+}
+
+fn extract_pdf_oxide_form_words_page(
     document: &pdf_oxide::PdfDocument,
     page_index: usize,
-) -> pdf_oxide::error::Result<Option<String>> {
+) -> pdf_oxide::error::Result<Vec<PdfOxideWord>> {
     let words = document
         .extract_words(page_index)?
         .into_iter()
         .filter_map(|word| pdf_oxide_word(word.text, word.bbox.x, word.bbox.width, word.bbox.y))
         .collect::<Vec<_>>();
-    Ok(extract_form_content_from_pdf_oxide_words(words))
+    Ok(words)
 }
 
 fn pdf_oxide_word(text: String, x: f32, width: f32, y: f32) -> Option<PdfOxideWord> {
@@ -37,9 +57,12 @@ fn pdf_oxide_word(text: String, x: f32, width: f32, y: f32) -> Option<PdfOxideWo
     })
 }
 
-fn extract_form_content_from_pdf_oxide_words(words: Vec<PdfOxideWord>) -> Option<String> {
+fn extract_form_content_from_pdf_oxide_words(
+    words: Vec<PdfOxideWord>,
+    previous_schema: Option<&PdfTableSchema>,
+) -> (String, Option<PdfTableSchema>) {
     if words.is_empty() {
-        return None;
+        return (String::new(), None);
     }
 
     let rows_by_y = group_words_by_y(words);
@@ -47,21 +70,51 @@ fn extract_form_content_from_pdf_oxide_words(words: Vec<PdfOxideWord>) -> Option
         .values()
         .flat_map(|row| row.iter().map(|word| word.x1))
         .fold(612.0_f32, f32::max);
-    let mut row_info = rows_by_y
+    let row_info = rows_by_y
         .into_values()
         .filter_map(|row_words| build_pdf_oxide_row(row_words, page_width))
+        .filter(|row| !is_pdf_oxide_rule_row(row))
         .collect::<Vec<_>>();
-    let global_columns = infer_global_columns(&row_info, page_width)?;
-    mark_table_rows(&mut row_info, &global_columns);
-    let table_regions = table_regions(&row_info);
-    if !has_enough_table_rows(&row_info, &table_regions) {
-        return None;
+    if let Some((content, schema)) = render_multiline_table(&row_info, previous_schema) {
+        return (content, Some(schema));
     }
-    Some(render_rows_with_tables(
-        &row_info,
-        &table_regions,
-        &global_columns,
-    ))
+    (render_plain_rows(&row_info), None)
+}
+
+fn render_plain_rows(row_info: &[PdfOxideRow]) -> String {
+    let mut rows = row_info.iter().collect::<Vec<_>>();
+    rows.sort_by(|left, right| right.top.total_cmp(&left.top));
+    rows.into_iter()
+        .map(|row| {
+            row.words
+                .iter()
+                .map(|word| word.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .filter(|line| !line.trim().is_empty())
+        .filter(|line| !is_pdf_oxide_rule_text(line))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn is_pdf_oxide_rule_row(row: &PdfOxideRow) -> bool {
+    let text = row
+        .words
+        .iter()
+        .map(|word| word.text.as_str())
+        .collect::<Vec<_>>()
+        .join("");
+    is_pdf_oxide_rule_text(&text)
+}
+
+fn is_pdf_oxide_rule_text(text: &str) -> bool {
+    let trimmed = text.trim();
+    trimmed.len() >= 3
+        && trimmed
+            .chars()
+            .all(|character| matches!(character, '-' | '|' | ':' | ' '))
+        && trimmed.chars().any(|character| character == '-')
 }
 
 fn group_words_by_y(
@@ -90,109 +143,15 @@ fn build_pdf_oxide_row(mut row_words: Vec<PdfOxideWord>, page_width: f32) -> Opt
         .map(|word| word.text.as_str())
         .collect::<Vec<_>>()
         .join(" ");
-    let x_groups = row_x_groups(&row_words);
+    let top = row_words
+        .iter()
+        .map(|word| word.top)
+        .fold(f32::INFINITY, f32::min);
     Some(PdfOxideRow {
-        has_partial_numbering: row_words
-            .first()
-            .is_some_and(|word| is_pdf_partial_numbering(word.text.trim())),
         words: row_words,
-        text: combined_text.clone(),
-        x_groups,
+        top,
         is_paragraph: line_width > page_width * 0.55 && combined_text.len() > 60,
-        is_table_row: false,
     })
-}
-
-fn row_x_groups(row_words: &[PdfOxideWord]) -> Vec<f32> {
-    let mut x_groups = Vec::<f32>::new();
-    for x in row_words.iter().map(|word| word.x0) {
-        if x_groups.last().is_none_or(|last| x - *last > 50.0) {
-            x_groups.push(x);
-        }
-    }
-    x_groups
-}
-
-fn infer_global_columns(row_info: &[PdfOxideRow], page_width: f32) -> Option<Vec<f32>> {
-    let mut all_table_x_positions = Vec::new();
-    for info in row_info {
-        if info.x_groups.len() >= 3 && !info.is_paragraph {
-            all_table_x_positions.extend(info.x_groups.iter().copied());
-        }
-    }
-    if all_table_x_positions.is_empty() {
-        return None;
-    }
-    all_table_x_positions.sort_by(f32::total_cmp);
-
-    let adaptive_tolerance = adaptive_column_tolerance(&all_table_x_positions);
-    let mut global_columns = Vec::<f32>::new();
-    for x in all_table_x_positions {
-        if global_columns
-            .last()
-            .is_none_or(|last| x - *last > adaptive_tolerance)
-        {
-            global_columns.push(x);
-        }
-    }
-    valid_global_columns(global_columns, page_width)
-}
-
-fn adaptive_column_tolerance(all_table_x_positions: &[f32]) -> f32 {
-    let gaps = all_table_x_positions
-        .windows(2)
-        .filter_map(|pair| {
-            let gap = pair[1] - pair[0];
-            (gap > 5.0).then_some(gap)
-        })
-        .collect::<Vec<_>>();
-    if gaps.len() >= 3 {
-        let mut sorted_gaps = gaps;
-        sorted_gaps.sort_by(f32::total_cmp);
-        sorted_gaps[(sorted_gaps.len() as f32 * 0.70) as usize].clamp(25.0, 50.0)
-    } else {
-        35.0
-    }
-}
-
-fn valid_global_columns(global_columns: Vec<f32>, page_width: f32) -> Option<Vec<f32>> {
-    if global_columns.len() <= 1 {
-        return None;
-    }
-    let content_width = global_columns[global_columns.len() - 1] - global_columns[0];
-    let avg_col_width = content_width / global_columns.len() as f32;
-    let columns_per_inch = global_columns.len() as f32 / (content_width / 72.0);
-    let adaptive_max_columns = (20.0 * (page_width / 612.0)).max(15.0) as usize;
-    (avg_col_width >= 30.0
-        && columns_per_inch <= 10.0
-        && global_columns.len() <= adaptive_max_columns)
-        .then_some(global_columns)
-}
-
-fn mark_table_rows(row_info: &mut [PdfOxideRow], global_columns: &[f32]) {
-    for info in row_info {
-        if info.is_paragraph || info.has_partial_numbering {
-            info.is_table_row = false;
-            continue;
-        }
-        let mut aligned_columns = std::collections::BTreeSet::new();
-        for word in &info.words {
-            for (col_idx, col_x) in global_columns.iter().enumerate() {
-                if (word.x0 - *col_x).abs() < 40.0 {
-                    aligned_columns.insert(col_idx);
-                    break;
-                }
-            }
-        }
-        info.is_table_row = aligned_columns.len() >= 2;
-    }
-}
-
-fn is_pdf_partial_numbering(text: &str) -> bool {
-    let Some(rest) = text.strip_prefix('.') else {
-        return false;
-    };
-    !rest.is_empty() && rest.chars().all(|character| character.is_ascii_digit())
 }
 
 #[cfg(test)]
@@ -206,7 +165,53 @@ mod tests {
         assert!(pdf_oxide_word("bad".to_string(), 10.0, f32::INFINITY, 10.0).is_none());
         assert!(pdf_oxide_word("bad".to_string(), 10.0, 10.0, f32::NEG_INFINITY).is_none());
     }
+
+    #[test]
+    fn renders_multiline_cells_as_table_from_column_geometry() {
+        let words = vec![
+            word("No", 50.0, 10.0, 100.0),
+            word("Question", 85.0, 48.0, 100.0),
+            word("Owner", 350.0, 35.0, 100.0),
+            word("Answer", 400.0, 42.0, 100.0),
+            word("Why", 85.0, 25.0, 80.0),
+            word("test?", 112.0, 35.0, 80.0),
+            word("Because", 400.0, 60.0, 80.0),
+            word("1", 72.0, 7.0, 60.0),
+            word("quality", 85.0, 45.0, 60.0),
+            word("Team", 350.0, 32.0, 60.0),
+            word("matters.", 400.0, 55.0, 60.0),
+            word("How", 85.0, 28.0, 40.0),
+            word("often?", 115.0, 45.0, 40.0),
+            word("Every", 400.0, 38.0, 40.0),
+            word("2", 72.0, 7.0, 20.0),
+            word("release", 85.0, 50.0, 20.0),
+            word("Ops", 350.0, 24.0, 20.0),
+            word("cycle.", 400.0, 42.0, 20.0),
+        ];
+
+        let (actual, _) = extract_form_content_from_pdf_oxide_words(words, None);
+
+        assert!(actual.starts_with("| No"));
+        assert!(actual.contains("Question"));
+        assert!(
+            actual.contains("| 1   | Why test? quality  | Team  | Because matters. |"),
+            "{actual}"
+        );
+        assert!(
+            actual.contains("| 2   | How often? release | Ops   | Every cycle.     |"),
+            "{actual}"
+        );
+    }
+
+    fn word(text: &str, x: f32, width: f32, y: f32) -> PdfOxideWord {
+        PdfOxideWord {
+            text: text.to_string(),
+            x0: x,
+            x1: x + width,
+            top: y,
+        }
+    }
 }
 mod table;
 
-use table::{has_enough_table_rows, render_rows_with_tables, table_regions};
+use table::{PdfTableSchema, render_multiline_table};

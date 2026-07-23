@@ -1,7 +1,8 @@
 use anything_to_markdown::pdf::{
     InternalPdfTextBackend, LenientPdfExtractBackend, PdfTextBackend, PdfTextExtraction,
+    PdfTextObject,
 };
-use anything_to_markdown::{AstNode, pdf};
+use anything_to_markdown::{AstNode, Flavor, TableCell, TableRow, markdown, pdf};
 
 #[test]
 fn parses_text_pdf_showing_operators_without_leaking_pdf_syntax() {
@@ -35,6 +36,63 @@ endobj
         warnings
             .iter()
             .any(|warning| warning.contains("text objects"))
+    );
+}
+
+#[test]
+fn pdf_commonmark_output_merges_line_breaks_inside_sentences() {
+    let objects = vec![
+        PdfTextObject {
+            text:
+                "単体テストを今見てみると、多くのことにいかに無駄な時間を費やしてしまったのか、とい"
+                    .to_string(),
+            font_size: None,
+            x: None,
+            y: None,
+        },
+        PdfTextObject {
+            text: "う思いに駆られてしまいます。".to_string(),
+            font_size: None,
+            x: None,
+            y: None,
+        },
+        PdfTextObject {
+            text: "次の文です。".to_string(),
+            font_size: None,
+            x: None,
+            y: None,
+        },
+    ];
+    let mut warnings = Vec::new();
+
+    let ast = pdf::infer_nodes_from_pdf_text_objects(objects, &mut warnings);
+    let actual = markdown::write_markdown(&ast, Flavor::CommonMark);
+
+    assert!(actual.contains("無駄な時間を費やしてしまったのか、という思いに駆られてしまいます。"));
+    assert!(actual.contains("駆られてしまいます。\n\n次の文です。"));
+}
+
+#[test]
+fn pdf_pipe_table_lines_become_table_nodes() {
+    let objects = vec![
+        pdf_text("| No | Question | Owner | Answer |"),
+        pdf_text("| --- | --- | --- | --- |"),
+        pdf_text("| 1 | Why test? | Team | Because quality matters. |"),
+        pdf_text("| 2 | How often? | Ops | Every release cycle. |"),
+    ];
+    let mut warnings = Vec::new();
+
+    let ast = pdf::infer_nodes_from_pdf_text_objects(objects, &mut warnings);
+
+    assert_eq!(
+        ast,
+        vec![AstNode::Table {
+            rows: vec![
+                table_row(["No", "Question", "Owner", "Answer"]),
+                table_row(["1", "Why test?", "Team", "Because quality matters."]),
+                table_row(["2", "How often?", "Ops", "Every release cycle."]),
+            ],
+        }]
     );
 }
 
@@ -669,4 +727,27 @@ fn valid_minimal_text_pdf() -> Vec<u8> {
     pdf.push_str(&format!("xref\n{xref_offset}\n"));
     pdf.push_str("%%EOF\n");
     pdf.into_bytes()
+}
+
+fn pdf_text(text: &str) -> pdf::PdfTextObject {
+    pdf::PdfTextObject {
+        text: text.to_string(),
+        font_size: None,
+        x: None,
+        y: None,
+    }
+}
+
+fn table_row<const N: usize>(cells: [&str; N]) -> TableRow {
+    TableRow {
+        cells: cells
+            .into_iter()
+            .map(|text| TableCell {
+                text: text.to_string(),
+                rowspan: 1,
+                colspan: 1,
+                image: None,
+            })
+            .collect(),
+    }
 }
